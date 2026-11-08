@@ -79,9 +79,14 @@ def test_an_ambiguous_name_stops_before_writing_anything(tmp_path, monkeypatch):
 def test_forget_removes_everything(tmp_path, monkeypatch):
     _run(tmp_path, monkeypatch, 1)
     import dossier.db as dbmod
+    import dossier.tools as toolsmod
 
     real_connect = dbmod.connect
     monkeypatch.setattr(dbmod, "connect", lambda path=None: real_connect(tmp_path / "dossier.db"))
+    briefs = tmp_path / "briefs"
+    briefs.mkdir()
+    (briefs / "acme-robotics-20260101T000000Z.html").write_text("<p>a whole brief</p>")
+    monkeypatch.setattr(toolsmod, "_brief_dir", lambda: briefs)
     conn = db.connect(tmp_path / "dossier.db")
     try:
         before = {
@@ -92,6 +97,8 @@ def test_forget_removes_everything(tmp_path, monkeypatch):
 
         payload = json.loads(tools.forget({"name": "Acme Robotics", "confirm": True}))
         assert payload["status"] == "deleted"
+        assert payload["deleted"]["briefs"] == 1
+        assert not list(briefs.glob("*.html")), "a rendered brief survived the delete"
         assert conn.execute("SELECT COUNT(*) FROM entities").fetchone()[0] == 0
         assert conn.execute("SELECT COUNT(*) FROM evidence").fetchone()[0] == 0
 

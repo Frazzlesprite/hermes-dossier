@@ -63,6 +63,26 @@ def _write_brief(name: str, html: str) -> str:
     return str(path)
 
 
+def _purge_briefs(name: str) -> int:
+    """Delete every rendered brief for an entity.
+
+    `dossier_forget` must remove the briefs as well as the rows: a rendered A4
+    file is the whole dossier in one document, and leaving it on disk would make
+    the delete a lie.
+    """
+    removed = 0
+    try:
+        for path in _brief_dir().glob(f"{_slug(name)}-*.html"):
+            try:
+                path.unlink()
+                removed += 1
+            except OSError:
+                continue
+    except OSError:
+        return removed
+    return removed
+
+
 def _stored_claims(conn, entity_id: int) -> list[Claim]:
     rows = conn.execute("SELECT * FROM claims WHERE entity_id = ? ORDER BY confidence DESC", (entity_id,)).fetchall()
     claims: list[Claim] = []
@@ -243,6 +263,7 @@ def forget(args: dict, *, ctx=None, **kwargs) -> str:
             counts = db.delete_entity(conn, entity["id"])
         finally:
             conn.close()
+        counts["briefs"] = _purge_briefs(entity["canonical_name"])
         return _dump({"status": "deleted", "entity": entity["canonical_name"], "deleted": counts})
     except Exception as exc:
         return _dump({"error": f"dossier_forget failed: {type(exc).__name__}: {exc}"})
