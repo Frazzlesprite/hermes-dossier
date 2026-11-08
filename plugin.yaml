@@ -1,0 +1,39 @@
+name: dossier
+version: 0.1.0
+manifest_version: 2
+api_version: 1
+description: "Sourced, dated, refreshable dossiers on organisations and people in a professional capacity, with a what-changed diff."
+author: Frazzlesprite
+license: MIT
+homepage: https://github.com/Frazzlesprite/dossier-plugin
+tags: [research, due-diligence, briefing, crm]
+requires_hermes: ">=0.23"
+provides_tools:
+  - dossier_build
+  - dossier_show
+  - dossier_diff
+  - dossier_refresh
+  - dossier_forget
+provides_hooks:
+  - pre_llm_call
+config_schema:
+  sources_per_brief:
+    type: int
+    default: 12
+    description: "Maximum number of sources fetched for one brief."
+  freshness_days:
+    type: int
+    default: 90
+    description: "Window, in days, for the Recent section."
+  retention_days:
+    type: int
+    default: 90
+    description: "Days a dossier is kept before it is reported as stale."
+  allow_people:
+    type: bool
+    default: true
+    description: "Allow dossiers on individuals in a professional public capacity."
+  user_agent:
+    type: str
+    default: "Dossier/0.1 (+https://github.com/Frazzlesprite/dossier-plugin)"
+    description: "User-Agent sent with every outbound request."

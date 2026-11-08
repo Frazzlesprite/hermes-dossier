@@ -1,0 +1,88 @@
+"""Tool schemas: what the model reads when deciding to call Dossier.
+
+Descriptions are specific about *when* to use each tool, because that sentence
+is the whole routing decision.
+"""
+
+NAME = {
+    "name": "dossier_build",
+    "description": (
+        "Build or refresh a sourced, dated dossier on an organisation, or on a person in a "
+        "professional public capacity. Use before a meeting, a sales call, an interview or a "
+        "partnership conversation. Every fact in the brief cites a fetched source with a "
+        "publication and retrieval date, and contradictions are kept as contested rather than "
+        "resolved. Returns a short card plus the path to the full A4 brief. Ask for a "
+        "disambiguator (domain, employer, location) when the name is ambiguous."
+    ),
+    "parameters": {
+        "type": "object",
+        "properties": {
+            "name": {"type": "string", "description": "Entity name, e.g. 'Kalamari' or 'Sarah Chen'."},
+            "kind": {"type": "string", "enum": ["org", "person"], "description": "Defaults to org unless the name looks like a person."},
+            "domain": {"type": "string", "description": "The organisation's own domain, when known. Pins the entity and stops name collisions."},
+            "github": {"type": "string", "description": "GitHub organisation slug, when known."},
+            "disambiguator": {"type": "string", "description": "Employer, role or location that tells two same-name entities apart."},
+            "purpose": {"type": "string", "description": "Why this dossier exists, e.g. 'supplier review for Q1'. Stored with the entity."},
+        },
+        "required": ["name"],
+    },
+}
+
+SHOW = {
+    "name": "dossier_show",
+    "description": (
+        "Show the stored dossier for an entity that has already been built. Returns the latest "
+        "brief card, its generation date, and the path to the full A4 HTML brief. Use when the "
+        "user asks what is already known about an entity."
+    ),
+    "parameters": {
+        "type": "object",
+        "properties": {"name": {"type": "string", "description": "Entity name or numeric dossier id."}},
+        "required": ["name"],
+    },
+}
+
+DIFF = {
+    "name": "dossier_diff",
+    "description": (
+        "Report what changed in an entity's dossier since the previous snapshot: new claims, "
+        "dropped claims, and claims whose confidence or status moved. This is the pre-meeting "
+        "question — 'what is different since I last looked?'"
+    ),
+    "parameters": {
+        "type": "object",
+        "properties": {"name": {"type": "string", "description": "Entity name or numeric dossier id."}},
+        "required": ["name"],
+    },
+}
+
+REFRESH = {
+    "name": "dossier_refresh",
+    "description": (
+        "Re-fetch the sources for an existing dossier and store a new snapshot, then report the "
+        "diff against the previous one. Use before a meeting when the stored brief is stale."
+    ),
+    "parameters": {
+        "type": "object",
+        "properties": {"name": {"type": "string", "description": "Entity name or numeric dossier id."}},
+        "required": ["name"],
+    },
+}
+
+FORGET = {
+    "name": "dossier_forget",
+    "description": (
+        "Permanently delete an entity's dossier: claims, evidence, snapshots and watchlist entry. "
+        "Requires confirm=true. Use when the user asks to forget or delete a dossier."
+    ),
+    "parameters": {
+        "type": "object",
+        "properties": {
+            "name": {"type": "string", "description": "Entity name or numeric dossier id."},
+            "confirm": {"type": "boolean", "description": "Must be true; the deletion is irreversible."},
+        },
+        "required": ["name", "confirm"],
+    },
+}
+
+ALL = (NAME, SHOW, DIFF, REFRESH, FORGET)

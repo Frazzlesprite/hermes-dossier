@@ -1,3 +1,176 @@
-# Dossier-plugin
+# Dossier
 
-Created by Minerva.
+**Sourced, dated, refreshable briefs on organisations and people in a professional public capacity — and what changed since you last looked.**
+
+Every sentence in a brief carries a source, a publication date and a retrieval date. If a claim has no evidence row, it does not print. A disagreement between sources is not resolved: it is printed as contested, with both sides and both dates.
+
+---
+
+## Disclosure: what this plugin does with your data
+
+Dossier makes **outbound network requests** to read public pages. It sends a descriptive `User-Agent`, respects `robots.txt`, and makes at most one request per host per second.
+
+Hosts it contacts:
+
+| Host | Why |
+|---|---|
+| The entity's own domain (and pages it links to, e.g. `/about`) | The organisation describing itself |
+| Whatever host your configured Hermes web-search backend returns | Finding candidate pages, which are then fetched in full |
+| `api.github.com` and `github.com` | Public organisation profile and repositories |
+| `news` results from the same search backend | Dated third-party coverage |
+
+It stores, in Hermes' per-plugin data directory (`plugin-data/dossier/`):
+
+- the entity record, including the **purpose** you gave when you created it;
+- claims, and for each claim the **verbatim quote**, source URL, publication date and retrieval date;
+- every generated brief, as a snapshot, so the next run can diff against it.
+
+It does **not** read credentials, `.env` files, browser profiles or other plugins' data. It has no telemetry and makes no analytics calls. If a model is available to the session, extracted claims are model-assisted but pass the same quote-verification gate as the deterministic extractor.
+
+`/dossier forget <name>` — or the Delete button in the Desktop — removes the entity, its claims, its evidence and every snapshot.
+
+---
+
+## Permissible use
+
+This section exists because the obvious version of this plugin is a privacy problem.
+
+**Allowed:** organisations; individuals acting in a professional public capacity, where you supply a work context (a meeting, a hiring process, a partnership).
+
+**Not allowed, and not implemented:**
+
+- **no sensitive-category inference or storage** — health, religion, sexual orientation, political affiliation, ethnicity, trade-union membership. These are refused at extraction, before a claim can reach the database, and no column exists to hold them;
+- **no non-public personal data** — home address, personal phone, family members, precise location;
+- **no allegations presented as fact** without a court record;
+- **no scraping behind a login** or against a site's terms;
+- **no dossier on a private individual** with no professional context.
+
+**Required:** a stated purpose at creation, a retention period, and `dossier_forget` that deletes everything.
+
+The brief's footer repeats this in one line. The policy tests are in `tests/test_policy.py` and fail the build if a sensitive term becomes a predicate or a column.
+
+---
+
+## What it does
+
+| Surface | What you get |
+|---|---|
+| `/dossier <name>` | Build or refresh a dossier, return a card |
+| `/dossier show\|diff\|refresh\|forget <name>` | The other verbs |
+| `dossier_build` / `dossier_show` / `dossier_diff` / `dossier_refresh` / `dossier_forget` | The same five, as tools |
+| Desktop → **Dossiers** | The list, the full brief, snapshot history, Refresh and Forget |
+| Full brief | A4 HTML, two pages plus a numbered source appendix |
+
+A brief has: one line, why they matter to you (drawn from Hermes memory and labelled as memory), facts, recent items, contested or unconfirmed claims, risks, three questions to ask, and the sources.
+
+---
+
+## Install
+
+```bash
+hermes plugins install owner/hermes-dossier    # from the catalog, once listed
+```
+
+Or for development, from a checkout:
+
+```bash
+# Windows
+mklink /D "%LOCALAPPDATA%\hermes\plugins\dossier" "C:\Backpack\dossier-plugin"
+```
+
+Then enable it and restart the gateway so the dashboard routes mount:
+
+```bash
+hermes plugins enable dossier
+```
+
+The folder name must be `dossier`, because the Desktop loader requires the directory name to equal the plugin id.
+
+---
+
+## Configuration
+
+Declared in `plugin.yaml`, editable in **Settings → Plugins → Dossier**:
+
+| Key | Default | Meaning |
+|---|---|---|
+| `sources_per_brief` | `12` | Hard cap on documents fetched for one brief |
+| `freshness_days` | `90` | Window for the Recent section |
+| `retention_days` | `90` | How long a dossier is kept before it is reported stale |
+| `allow_people` | `true` | Set false to refuse dossiers on individuals |
+| `user_agent` | `Dossier/0.1 (+…)` | Identifies the plugin in requests |
+
+There are no API keys and no Python dependencies. The fetcher is `urllib` from the standard library.
+
+---
+
+## How it is put together
+
+```
+name ──► resolve.py ──► one entity, or a question
+             │
+             ▼
+         plan.py ──► queries and research questions
+             │
+             ▼
+      adapters/*.py ──► normalised documents (url, title, published_at, text)
+             │
+             ▼
+        extract.py ──► claims + verbatim quotes, policy-gated
+             │
+             ▼
+        verify.py ──► confidence, dedupe, contested
+             │
+             ▼
+       compose.py ──► sections, every bullet citing evidence
+             │
+             ▼
+        render.py ──► A4 HTML + chat card
+             │
+             ▼
+         store.py ──► snapshots + diff
+```
+
+Two deliberate design choices, both worth knowing before you change anything:
+
+**Composition is deterministic.** `compose.py` applies templates to verified claims. It does not ask a model to write prose. That makes an unsourced sentence impossible by construction rather than by prompt discipline — and it means the same claim set always renders the same brief.
+
+**Extraction is gated, not trusted.** The deterministic extractor captures the surrounding sentence as the quote. The optional model path returns a quote too, and both are rejected unless the quote is a verbatim substring of the fetched page text, at least 12 characters, inside the closed predicate set, and clear of every sensitive-category term. Rejections are counted and returned, never silently dropped.
+
+---
+
+## Deviations from the v1 spec, and why
+
+| Spec | Built | Why |
+|---|---|---|
+| Five adapters including a company registry | Four: official site, web search, news, GitHub | No registry key was available. Registry fields render as unverified rather than guessed. The interface is in `adapters/` and adding one is a single module. |
+| `desktop/plugin.js` only | `desktop/plugin.js` **and** `dashboard/plugin_api.py` | The Desktop renderer can only reach Python over HTTP. Without a backend route the page has nothing to call. |
+| PDF via typesetting | A4 HTML with `@page` rules and a print stylesheet | No `typst` on the host. Print-to-PDF from the browser or the Desktop gives the same two pages without adding a dependency. |
+| `validate . --install-deps --ci` | `validate . --install-deps` (or `--json`) | `--ci` is a `doctor` flag, not a `validate` flag in Hermes 0.23.0. |
+| `pre_llm_call` injects brief content | Injects a one-line pointer to an existing dossier only | Claim text in a system turn goes stale silently. The hook says a dossier exists, when it was taken, and offers the diff. |
+
+---
+
+## Development
+
+```bash
+python -m venv .venv
+.venv\Scripts\pip install pytest pyyaml
+.venv\Scripts\python -m pytest tests
+hermes plugins doctor . --ci
+hermes plugins validate . --install-deps
+```
+
+Three things that will save you an afternoon:
+
+1. **The plugin root is a package.** Hermes loads it with `spec_from_file_location(..., submodule_search_locations=[plugin_dir])`, so internal imports are relative. A flat `import db` fails at load time, not at test time.
+2. **Run pytest as `python -m pytest tests`.** `tests/pytest.ini` sets the rootdir to `tests` on purpose; without it the collector climbs out of the repo and tries to import the root `__init__.py` as a top-level module.
+3. **Do not touch `ctx.llm` inside `register()`.** It is a property, and the validation probe's recording context does not stub properties — `register()` would raise and the `capability probe` check would fail. Model access belongs in handlers.
+
+---
+
+## Licence
+
+MIT. See `LICENSE`.
+
+*Everything you should know before you walk in, sourced and dated.*
