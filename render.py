@@ -102,6 +102,13 @@ def render_html(brief: Brief, *, title: str = "Dossier") -> str:
 </div></body></html>"""
 
 
+def render_pdf(brief: Brief) -> bytes:
+    """The A4 PDF, from the same Brief object as the HTML."""
+    from .pdf import render_pdf as _build  # local import keeps pdf.py importable alone
+
+    return _build(brief)
+
+
 def render_card(brief: Brief, *, href: str | None = None) -> str:
     """The chat card: one line, three questions, a link. Nothing else."""
     name = str(brief.entity.get("canonical_name") or "Dossier")

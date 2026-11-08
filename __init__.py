@@ -83,7 +83,7 @@ def recall_dossier(session_id: str = "", user_message: str = "", **kwargs: Any) 
 
 def _parse(raw_args: str) -> tuple[str, str]:
     parts = (raw_args or "").strip().split(None, 1)
-    verbs = {"build", "show", "diff", "refresh", "forget"}
+    verbs = {"build", "show", "diff", "refresh", "forget", "watch"}
     if parts and parts[0].lower() in verbs:
         return parts[0].lower(), (parts[1] if len(parts) > 1 else "")
     return "build", (raw_args or "").strip()
@@ -92,8 +92,44 @@ def _parse(raw_args: str) -> tuple[str, str]:
 USAGE = (
     "Usage: /dossier <name>\n"
     "       /dossier show|diff|refresh|forget <name>\n"
-    "`forget` requires the confirm checkbox in the Desktop, or dossier_forget with confirm=true."
+    "       /dossier watch <name> [off|manual|daily|weekly]\n"
+    "`forget` requires confirm=true on the tool, or the delete button in the Desktop."
 )
+
+
+def db_cadences() -> tuple[str, ...]:
+    try:
+        from .db import CADENCES  # noqa: PLC0415
+
+        return CADENCES
+    except Exception:
+        return ("off", "manual", "daily", "weekly")
+
+
+def _register_blueprint(ctx) -> None:
+    """A scheduled refresh users can pick in /blueprint without touching cron."""
+    if not hasattr(ctx, "register_automation_blueprint"):
+        return
+    try:
+        ctx.register_automation_blueprint(
+            "refresh",
+            title="Dossier refresh",
+            description="Re-fetch a saved dossier before a regular meeting and report only what changed.",
+            category="work",
+            schedule_template="{minute} {hour} * * 1-5",
+            prompt_template=(
+                "Refresh the dossier on {entity}: call dossier_refresh with name={entity}, "
+                "then report only what changed since the previous snapshot. If nothing changed, "
+                "say so in one line."
+            ),
+            slots=[
+                {"name": "entity", "type": "text", "label": "Which entity?", "default": "Acme Robotics"},
+                {"name": "time", "type": "time", "label": "What time?", "default": "07:30"},
+            ],
+            tags=["research", "dossier"],
+        )
+    except Exception:
+        logger.debug("dossier: automation blueprint not registered", exc_info=True)
 
 
 def register(ctx) -> None:
@@ -108,18 +144,30 @@ def register(ctx) -> None:
         )
 
     ctx.register_hook("pre_llm_call", recall_dossier)
+    _register_blueprint(ctx)
 
     def _command(raw_args: str, **kwargs: Any) -> str:
         verb, rest = _parse(raw_args)
         if not rest:
             return USAGE
-        handler = tools.HANDLERS[f"dossier_{verb}"]
-        payload = {"name": rest}
+        if verb == "watch":
+            pieces = rest.rsplit(None, 1)
+            if len(pieces) == 2 and pieces[1].lower() in db_cadences():
+                rest, cadence = pieces[0], pieces[1].lower()
+            else:
+                cadence = "manual"
+            payload = {"name": rest, "cadence": cadence}
+        else:
+            payload = {"name": rest}
         if verb == "forget":
             payload["confirm"] = True
+        handler = tools.HANDLERS[f"dossier_{verb}"]
         result = json.loads(handler(payload, ctx=ctx, **kwargs) or "{}")
         if result.get("error"):
             return f"Dossier: {result['error']}"
+        if verb == "watch":
+            watch_state = result.get("watch") or {}
+            return f"{result['entity']}: cadence {watch_state.get('cadence', cadence)}."
         if verb == "diff":
             if not result.get("changed_count"):
                 return f"No changes since {result.get('from')}."
@@ -134,8 +182,8 @@ def register(ctx) -> None:
         if verb == "forget":
             return f"Deleted the dossier on {result.get('entity')}: {result.get('deleted')}"
         card = result.get("card") or result.get("headline") or "Built."
-        path = result.get("brief_path")
-        return f"{card}\n\nFull brief: {path}" if path else card
+        paths = [p for p in (result.get("brief_path"), result.get("pdf_path")) if p]
+        return f"{card}\n\nFull brief: {paths[0]}" + (f"\nPDF: {result['pdf_path']}" if result.get("pdf_path") else "") if paths else card
 
     ctx.register_command(
         "dossier",

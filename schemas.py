@@ -72,8 +72,8 @@ REFRESH = {
 FORGET = {
     "name": "dossier_forget",
     "description": (
-        "Permanently delete an entity's dossier: claims, evidence, snapshots and watchlist entry. "
-        "Requires confirm=true. Use when the user asks to forget or delete a dossier."
+        "Permanently delete an entity's dossier: claims, evidence, snapshots, rendered briefs and "
+        "watchlist entry. Requires confirm=true. Use when the user asks to forget or delete a dossier."
     ),
     "parameters": {
         "type": "object",
@@ -85,4 +85,22 @@ FORGET = {
     },
 }
 
-ALL = (NAME, SHOW, DIFF, REFRESH, FORGET)
+WATCH = {
+    "name": "dossier_watch",
+    "description": (
+        "Set how often a stored dossier should be refreshed: off, manual, daily or weekly. Record the "
+        "calendar or meeting hint that makes the refresh worth doing (e.g. 'board meeting first "
+        "Tuesday'). Use when the user says to keep an eye on an entity, or to stop."
+    ),
+    "parameters": {
+        "type": "object",
+        "properties": {
+            "name": {"type": "string", "description": "Entity name or numeric dossier id."},
+            "cadence": {"type": "string", "enum": ["off", "manual", "daily", "weekly"], "description": "Refresh cadence."},
+            "calendar_hint": {"type": "string", "description": "Why and when: the meeting or event this is for."},
+        },
+        "required": ["name", "cadence"],
+    },
+}
+
+ALL = (NAME, SHOW, DIFF, REFRESH, FORGET, WATCH)

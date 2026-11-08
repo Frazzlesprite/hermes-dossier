@@ -229,6 +229,11 @@ def html_to_text(html: str, limit: int = 40_000) -> tuple[str, str, dict[str, st
         pass
 
     lines: list[str] = []
+    description = (parser.meta.get("description") or parser.meta.get("og:description") or "").strip()
+    if description:
+        # The meta description is the page describing itself in one sentence —
+        # the best one-line claim available, and it is part of the document.
+        lines.append(description.rstrip(".") + ".")
     for raw in parser.text().splitlines():
         line = raw.strip()
         if not line:

@@ -35,19 +35,46 @@ def _slug_from_url(value: str) -> Optional[str]:
     return match.group(1) if match else None
 
 
+def registrable_label(value: str) -> str:
+    """'https://www.apple.com/au/' -> 'apple'."""
+    host = re.sub(r"^https?://", "", (value or "").strip().lower()).split("/")[0]
+    host = host.split(":")[0].removeprefix("www.")
+    parts = [p for p in host.split(".") if p]
+    if len(parts) >= 2:
+        return parts[-2]
+    return parts[0] if parts else ""
+
+
 def collect_github(
     slug: Optional[str],
     *,
     policy: Optional[Policy] = None,
     website: Optional[str] = None,
 ) -> dict[str, Any]:
-    slug = slug or (_slug_from_url(website or "") if website else None)
+    derived = False
+    if not slug:
+        slug = _slug_from_url(website or "") if website else None
+        if not slug and website:
+            # github.com/<label> is a guess, so it has to prove itself below.
+            slug = registrable_label(website)
+            derived = bool(slug)
     if not slug:
         return {"documents": [], "notes": ["github: no organisation slug known"]}
 
     org = _get_json(f"/orgs/{slug}", policy)
     if not isinstance(org, dict) or not org.get("login"):
         return {"documents": [], "notes": [f"github: no public organisation {slug!r}"]}
+
+    if derived:
+        # A guessed slug is only accepted when the org links back to the site.
+        blog = str(org.get("blog") or "")
+        if not blog or registrable_label(website or "") not in blog.casefold():
+            return {
+                "documents": [],
+                "notes": [
+                    f"github: guessed slug {slug!r} from the domain but the organisation does not link back to it"
+                ],
+            }
 
     repos = _get_json(f"/orgs/{slug}/repos?sort=pushed&direction=desc&per_page=5", policy)
     repos = repos if isinstance(repos, list) else []

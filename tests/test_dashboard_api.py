@@ -55,6 +55,7 @@ def test_the_router_declares_every_route_the_page_calls():
         ("/dossiers", ("GET",)),
         ("/dossiers/{entity_id}", ("GET",)),
         ("/dossiers/{entity_id}/brief", ("GET",)),
+        ("/dossiers/{entity_id}/brief.pdf", ("GET",)),
         ("/dossiers/{entity_id}/refresh", ("POST",)),
         ("/dossiers/{entity_id}/forget", ("POST",)),
     }

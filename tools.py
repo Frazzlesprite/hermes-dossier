@@ -56,11 +56,42 @@ def _brief_dir() -> Path:
     return path
 
 
-def _write_brief(name: str, html: str) -> str:
+def _secret(ctx, key: str, env_name: str) -> str:
+    """Credentials come through Hermes, never from a file we read ourselves."""
+    if ctx is None:
+        return ""
+    try:
+        value = ctx.get_config(key, default="")
+        if value:
+            return str(value)
+    except Exception:
+        pass
+    try:
+        from agent.secret_scope import get_secret  # noqa: PLC0415 - documented route
+
+        return get_secret(env_name) or ""
+    except Exception:
+        return ""
+
+
+def _write_outputs(name: str, html: str, pdf: bytes) -> dict[str, str]:
     stamp = time.strftime("%Y%m%dT%H%M%SZ", time.gmtime())
-    path = _brief_dir() / f"{_slug(name)}-{stamp}.html"
-    path.write_text(html, encoding="utf-8")
-    return str(path)
+    base = _brief_dir() / f"{_slug(name)}-{stamp}"
+    paths = {}
+    try:
+        html_path = base.with_suffix(".html")
+        html_path.write_text(html or "", encoding="utf-8")
+        paths["brief_path"] = str(html_path)
+    except OSError:
+        pass
+    if pdf:
+        try:
+            pdf_path = base.with_suffix(".pdf")
+            pdf_path.write_bytes(pdf)
+            paths["pdf_path"] = str(pdf_path)
+        except OSError:
+            pass
+    return paths
 
 
 def _purge_briefs(name: str) -> int:
@@ -72,12 +103,13 @@ def _purge_briefs(name: str) -> int:
     """
     removed = 0
     try:
-        for path in _brief_dir().glob(f"{_slug(name)}-*.html"):
-            try:
-                path.unlink()
-                removed += 1
-            except OSError:
-                continue
+        for pattern in (f"{_slug(name)}-*.html", f"{_slug(name)}-*.pdf"):
+            for path in _brief_dir().glob(pattern):
+                try:
+                    path.unlink()
+                    removed += 1
+                except OSError:
+                    continue
     except OSError:
         return removed
     return removed
@@ -128,6 +160,8 @@ def build(args: dict, *, ctx=None, **kwargs) -> str:
                 github=args.get("github"),
                 kind=kind,
                 purpose=args.get("purpose"),
+                abn_guid=_secret(ctx, "abn_lookup_guid", "ABN_LOOKUP_GUID"),
+                companies_house_key=_secret(ctx, "companies_house_api_key", "COMPANIES_HOUSE_API_KEY"),
             )
         finally:
             conn.close()
@@ -135,8 +169,8 @@ def build(args: dict, *, ctx=None, **kwargs) -> str:
         if result.get("status") != "ok":
             return _dump(result)
 
-        result["brief_path"] = _write_brief(name, result["html"])
-        for key in ("html",):
+        result.update(_write_outputs(name, result.get("html") or "", result.get("pdf") or b""))
+        for key in ("html", "pdf"):
             result.pop(key, None)
         return _dump(result)
     except Exception as exc:
@@ -173,7 +207,9 @@ def show(args: dict, *, ctx=None, **kwargs) -> str:
         if not snapshot:
             return _dump({"error": f"No snapshot stored for {entity['canonical_name']!r}."})
 
-        brief_path = _write_brief(entity["canonical_name"], snapshot[0].get("brief_html") or "")
+        brief_paths = _write_outputs(
+            entity["canonical_name"], snapshot[0].get("brief_html") or "", snapshot[0].get("brief_pdf") or b""
+        )
         return _dump(
             {
                 "status": "ok",
@@ -181,7 +217,7 @@ def show(args: dict, *, ctx=None, **kwargs) -> str:
                 "taken_at": snapshot[0]["taken_at"],
                 "claims": len(claims),
                 "contested": len([c for c in claims if c.status == "contested"]),
-                "brief_path": brief_path,
+                **brief_paths,
                 "note": "Run dossier_refresh to fetch fresh sources and get a diff.",
             }
         )
@@ -236,13 +272,17 @@ def refresh(args: dict, *, ctx=None, **kwargs) -> str:
                 disambiguator=entity.get("disambiguator"),
                 kind=entity.get("kind"),
                 purpose=entity.get("purpose"),
+                abn_guid=_secret(ctx, "abn_lookup_guid", "ABN_LOOKUP_GUID"),
+                companies_house_key=_secret(ctx, "companies_house_api_key", "COMPANIES_HOUSE_API_KEY"),
             )
         finally:
             conn.close()
 
         if result.get("status") != "ok":
             return _dump(result)
-        result["brief_path"] = _write_brief(entity["canonical_name"], result.pop("html"))
+        result.update(_write_outputs(entity["canonical_name"], result.get("html") or "", result.get("pdf") or b""))
+        for key in ("html", "pdf"):
+            result.pop(key, None)
         return _dump(result)
     except Exception as exc:
         return _dump({"error": f"dossier_refresh failed: {type(exc).__name__}: {exc}"})
@@ -269,10 +309,34 @@ def forget(args: dict, *, ctx=None, **kwargs) -> str:
         return _dump({"error": f"dossier_forget failed: {type(exc).__name__}: {exc}"})
 
 
+def watch(args: dict, *, ctx=None, **kwargs) -> str:
+    try:
+        ref = str(args.get("name", "")).strip()
+        cadence = str(args.get("cadence", "manual")).strip().lower()
+        if not ref:
+            return _dump({"error": "name is required"})
+        conn = db.connect()
+        try:
+            entity = db.find_entity(conn, ref)
+            if not entity:
+                return _dump({"error": f"No stored dossier matches {ref!r}. Build one first."})
+            state = db.set_watch(
+                conn, entity["id"], cadence=cadence, calendar_hint=args.get("calendar_hint")
+            )
+        finally:
+            conn.close()
+        return _dump({"status": "ok", "entity": entity["canonical_name"], "watch": state})
+    except ValueError as exc:
+        return _dump({"error": str(exc)})
+    except Exception as exc:
+        return _dump({"error": f"dossier_watch failed: {type(exc).__name__}: {exc}"})
+
+
 HANDLERS = {
     "dossier_build": build,
     "dossier_show": show,
     "dossier_diff": diff,
     "dossier_refresh": refresh,
     "dossier_forget": forget,
+    "dossier_watch": watch,
 }

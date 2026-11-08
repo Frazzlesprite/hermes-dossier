@@ -1,5 +1,5 @@
 name: dossier
-version: 0.1.0
+version: 0.2.0
 manifest_version: 2
 api_version: 1
 description: "Sourced, dated, refreshable dossiers on organisations and people in a professional capacity, with a what-changed diff."
@@ -14,6 +14,7 @@ provides_tools:
   - dossier_diff
   - dossier_refresh
   - dossier_forget
+  - dossier_watch
 provides_hooks:
   - pre_llm_call
 config_schema:
@@ -32,7 +33,23 @@ config_schema:
   allow_people:
     type: bool
     default: true
-    description: "Allow dossiers on individuals in a professional public capacity."
+    description: "Allow dossiers on individuals in a professional public capacity. A person dossier always requires a stated purpose."
+  country:
+    type: str
+    default: ""
+    description: "Two-letter country code for the registry adapter. Empty queries every provider that has a credential."
+  registry_contact:
+    type: str
+    default: ""
+    description: "Contact email sent to SEC EDGAR as its required User-Agent contact. EDGAR is skipped without it."
+  abn_lookup_guid:
+    type: secret
+    env: ABN_LOOKUP_GUID
+    description: "Free ABN Lookup GUID (Australia), registered by email at abr.business.gov.au. Optional."
+  companies_house_api_key:
+    type: secret
+    env: COMPANIES_HOUSE_API_KEY
+    description: "Companies House API key (United Kingdom). Optional."
   user_agent:
     type: str
     default: "Dossier/0.1 (+https://github.com/Frazzlesprite/dossier-plugin)"

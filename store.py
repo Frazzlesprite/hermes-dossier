@@ -19,10 +19,17 @@ def claims_payload(claims: list[Claim]) -> str:
     return json.dumps([c.as_dict() for c in claims], ensure_ascii=False, sort_keys=True)
 
 
-def save_snapshot(conn: sqlite3.Connection, entity_id: int, taken_at: str, brief_html: str, claims: list[Claim]) -> int:
+def save_snapshot(
+    conn: sqlite3.Connection,
+    entity_id: int,
+    taken_at: str,
+    brief_html: str,
+    claims: list[Claim],
+    brief_pdf: bytes | None = None,
+) -> int:
     cursor = conn.execute(
-        "INSERT INTO snapshots (entity_id, taken_at, brief_html, claims_json) VALUES (?, ?, ?, ?)",
-        (entity_id, taken_at, brief_html, claims_payload(claims)),
+        "INSERT INTO snapshots (entity_id, taken_at, brief_html, claims_json, brief_pdf) VALUES (?, ?, ?, ?, ?)",
+        (entity_id, taken_at, brief_html, claims_payload(claims), brief_pdf),
     )
     conn.commit()
     return int(cursor.lastrowid)
@@ -30,7 +37,7 @@ def save_snapshot(conn: sqlite3.Connection, entity_id: int, taken_at: str, brief
 
 def recent_snapshots(conn: sqlite3.Connection, entity_id: int, limit: int = 2) -> list[dict[str, Any]]:
     rows = conn.execute(
-        "SELECT id, entity_id, taken_at, brief_html, claims_json FROM snapshots "
+        "SELECT id, entity_id, taken_at, brief_html, brief_pdf, claims_json FROM snapshots "
         "WHERE entity_id = ? ORDER BY taken_at DESC, id DESC LIMIT ?",
         (entity_id, limit),
     ).fetchall()

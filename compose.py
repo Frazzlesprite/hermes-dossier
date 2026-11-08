@@ -16,12 +16,13 @@ from typing import Iterable, Optional, Sequence
 from .models import Brief, Bullet, Claim, Evidence, Section
 from .verify import contested_groups
 
-FACT_ORDER = ("founded", "employees", "hq", "ceo", "funding", "product")
+FACT_ORDER = ("founded", "employees", "hq", "ceo", "role", "funding", "product")
 FACT_LABEL = {
     "founded": "Founded",
     "employees": "Size",
     "hq": "HQ",
     "ceo": "Leadership",
+    "role": "Role",
     "funding": "Funding",
     "product": "What they do",
 }
@@ -164,14 +165,49 @@ def _questions(
     return questions[:3]
 
 
+NEWSY = ("announced", "reported", "today", "quarter", "results", "raises", "appoints", "shares")
+
+_SOURCE_SCORE = {"official": 3, "github": 2, "registry": 2, "news": 0, "search": 1}
+
+
+def _pick_headline_claim(claims: Sequence[Claim], name: str = "") -> Optional[Claim]:
+    best: Optional[Claim] = None
+    best_score = -99
+    for claim in claims:
+        if claim.predicate != "product" or claim.status == "contested" or not claim.evidence:
+            continue
+        evidence = claim.evidence[0]
+        score = _SOURCE_SCORE.get(evidence.source_type, 0)
+        value = claim.value.casefold()
+        if any(word in value for word in NEWSY):
+            score -= 2
+        if claim.value[:1].islower():
+            # A fragment lifted from mid-sentence ("financing on Apple
+            # products") is not a one-line description.
+            score -= 3
+        if name and value.startswith(name.casefold()):
+            score += 1
+        depth = max(0, evidence.source_url.rstrip("/").count("/") - 3)
+        score -= depth
+        if 30 <= len(claim.value) <= 200:
+            score += 1
+        if score > best_score:
+            best, best_score = claim, score
+    return best
+
+
 def _headline(name: str, claims: Sequence[Claim]) -> str:
-    for predicate in ("product", "hq", "founded"):
-        for claim in claims:
-            if claim.predicate == predicate and claim.status != "contested":
-                if claim.value.casefold().startswith(name.casefold()) or name.casefold() in claim.value.casefold()[:40]:
-                    return claim.value
-                return f"{name} — {claim.value}"
-    return f"{name} — no supported one-line description yet"
+    """The one line, chosen for stability rather than for freshness.
+
+    A product claim from the entity's own front page describes them; a claim
+    from yesterday's press release describes yesterday. Score for the former.
+    """
+    best = _pick_headline_claim(claims, name)
+    if best is None:
+        return f"{name} — no supported one-line description yet"
+    if best.value.casefold().startswith(name.casefold()) or name.casefold() in best.value.casefold()[:40]:
+        return best.value
+    return f"{name} — {best.value}"
 
 
 def compose(
@@ -190,7 +226,7 @@ def compose(
     sections: list[Section] = []
 
     headline = _headline(name, claims)
-    best = next((c for c in claims if c.predicate in {"product", "hq", "founded"}), None)
+    best = _pick_headline_claim(claims, name)
     sections.append(
         Section(
             id="one_line",

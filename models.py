@@ -20,6 +20,7 @@ PREDICATES = (
     "employees",
     "hq",
     "ceo",
+    "role",  # a person's professional role; the person-kind counterpart to `ceo`
     "funding",
     "product",
     "news",
@@ -28,7 +29,7 @@ PREDICATES = (
 # Predicates that describe one value at a time. Two sources disagreeing on one
 # of these is a contradiction worth printing; two sources disagreeing on
 # "product" is just two products.
-SINGLE_VALUED = frozenset({"founded", "employees", "hq", "ceo", "funding"})
+SINGLE_VALUED = frozenset({"founded", "employees", "hq", "ceo", "role", "funding"})
 
 # Source types, weakest to strongest. `search` means "found through search,
 # then fetched"; a search result whose page we never fetched is not stored at
@@ -198,6 +199,8 @@ class Section:
 
 @dataclass
 class Brief:
+    """A complete, print-ready brief."""
+
     entity: dict[str, Any]
     headline: str
     sections: list[Section]

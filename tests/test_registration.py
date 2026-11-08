@@ -23,6 +23,7 @@ class RecordingCtx:
         self.hooks = {}
         self.commands = {}
         self.skills = {}
+        self.blueprints = {}
 
     def register_tool(self, *, name, toolset, schema, handler, **kwargs):
         self.tools[name] = {"toolset": toolset, "schema": schema, "handler": handler}
@@ -35,6 +36,9 @@ class RecordingCtx:
 
     def register_skill(self, name, path):
         self.skills[name] = path
+
+    def register_automation_blueprint(self, key, **kwargs):
+        self.blueprints[key] = kwargs
 
     def get_config(self, key, default=None):
         return default
@@ -84,6 +88,21 @@ def test_the_slash_command_is_registered():
     ctx = RecordingCtx()
     register(ctx)
     assert "dossier" in ctx.commands
+
+
+def test_a_scheduled_refresh_blueprint_is_offered():
+    ctx = RecordingCtx()
+    register(ctx)
+    assert "refresh" in ctx.blueprints
+    blueprint = ctx.blueprints["refresh"]
+    assert "{entity}" in blueprint["prompt_template"]
+    assert blueprint["schedule_template"].startswith("{minute} {hour}")
+
+
+def test_the_watch_tool_is_registered():
+    ctx = RecordingCtx()
+    register(ctx)
+    assert "dossier_watch" in ctx.tools
 
 
 def test_register_touches_no_database(tmp_path, monkeypatch):

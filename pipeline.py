@@ -9,6 +9,7 @@ thing testable without an agent.
 from __future__ import annotations
 
 import json
+import re
 import sqlite3
 from dataclasses import dataclass
 from typing import Any, Callable, Optional
@@ -20,11 +21,12 @@ from .adapters.base import Policy, now_iso
 from .adapters.github import collect_github
 from .adapters.news import collect_news
 from .adapters.official import collect_official
+from .adapters.registry import collect_registry
 from .adapters.search import SearchFn, collect_search
 from .compose import compose
 from .extract import ExtractionReport, extract, extract_with_llm
 from .models import SINGLE_VALUED, SOURCE_TYPES, Claim, Document
-from .render import render_card, render_html
+from .render import render_card, render_html, render_pdf
 from .verify import upgrade_source_type, verify
 
 DEFAULTS = {
@@ -33,6 +35,8 @@ DEFAULTS = {
     "retention_days": 90,
     "allow_people": True,
     "user_agent": "Dossier/0.1 (+https://github.com/Frazzlesprite/dossier-plugin)",
+    "country": "",
+    "registry_contact": "",
 }
 
 
@@ -43,6 +47,8 @@ class Config:
     retention_days: int = 90
     allow_people: bool = True
     user_agent: str = DEFAULTS["user_agent"]
+    country: str = ""
+    registry_contact: str = ""
 
     @classmethod
     def from_mapping(cls, values: Optional[dict[str, Any]]) -> "Config":
@@ -53,6 +59,8 @@ class Config:
             retention_days=max(1, int(values["retention_days"])),
             allow_people=bool(values["allow_people"]),
             user_agent=str(values["user_agent"]),
+            country=str(values.get("country") or ""),
+            registry_contact=str(values.get("registry_contact") or ""),
         )
 
     def policy(self) -> Policy:
@@ -214,6 +222,18 @@ def _guard_name_collisions(
     return kept
 
 
+def _registry_id_from(documents: list[Document]) -> Optional[str]:
+    """The first statutory identifier the registry pages state, if any."""
+    for doc in documents:
+        if doc.source_type != "registry":
+            continue
+        for pattern in (r"\bCIK\s+(\d{5,12})", r"\bABN\s+([\d ]{11,17})", r"company number\s+([A-Z0-9]{6,10})"):
+            match = re.search(pattern, doc.text)
+            if match:
+                return match.group(1).strip()
+    return None
+
+
 def build(
     name: str,
     *,
@@ -227,16 +247,29 @@ def build(
     kind: Optional[str] = None,
     purpose: Optional[str] = None,
     memory_context: Optional[str] = None,
+    abn_guid: str = "",
+    companies_house_key: str = "",
+    registry_contact: str = "",
 ) -> dict[str, Any]:
     config = config or Config()
     policy = config.policy()
     notes: list[str] = []
 
-    if kind == "person" and not config.allow_people:
-        return {
-            "status": "refused",
-            "error": "Dossiers on people are disabled (allow_people=false).",
-        }
+    if kind == "person":
+        if not config.allow_people:
+            return {
+                "status": "refused",
+                "error": "Dossiers on people are disabled (allow_people=false).",
+            }
+        if not (purpose or "").strip():
+            return {
+                "status": "refused",
+                "error": (
+                    "A dossier on a person needs a stated purpose — the professional context "
+                    "(e.g. purpose='interview for the platform role on Thursday'). "
+                    "Without one it is surveillance, not research."
+                ),
+            }
 
     # 1. Resolve. Only fetch enough to tell one entity from another.
     discovery: list[Document] = []
@@ -304,12 +337,23 @@ def build(
         collected.extend(gh["documents"])
         notes.extend(gh["notes"])
 
+    registry = collect_registry(
+        candidate["name"],
+        country=(candidate.get("country") or config.country) or None,
+        policy=policy,
+        abn_guid=abn_guid,
+        companies_house_key=companies_house_key,
+        contact=registry_contact or config.registry_contact,
+    )
+    collected.extend(registry["documents"])
+    notes.extend(registry["notes"])
+
     documents = _dedupe_documents(collected, config.sources_per_brief)
     documents = _guard_name_collisions(documents, candidate, notes)
     documents = [upgrade_source_type(d, candidate.get("domain")) for d in documents]
 
     # 3. Extract and verify.
-    report: ExtractionReport = extract(documents)
+    report: ExtractionReport = extract(documents, kind=candidate.get("kind") or "org")
     if llm is not None:
         for doc in documents[:6]:
             extract_with_llm(doc, llm, report)
@@ -329,8 +373,20 @@ def build(
         notes=notes,
     )
     html = render_html(brief)
+    pdf = render_pdf(brief)
     persist_claims(conn, entity_id, verification.claims)
-    snapshot_id = store.save_snapshot(conn, entity_id, stamp, html, verification.claims)
+
+    registry_id = _registry_id_from(registry["documents"])
+    if registry_id:
+        conn.execute(
+            "UPDATE entities SET registry_id = COALESCE(registry_id, ?), updated_at = ? WHERE id = ?",
+            (registry_id, stamp, entity_id),
+        )
+        conn.commit()
+
+    snapshot_id = store.save_snapshot(conn, entity_id, stamp, html, verification.claims, pdf)
+    conn.execute("UPDATE watchlist SET last_run = ? WHERE entity_id = ?", (stamp, entity_id))
+    conn.commit()
     diff = store.latest_diff(conn, entity_id)
 
     return {
@@ -342,6 +398,7 @@ def build(
         "questions": brief.questions,
         "claims": [c.as_dict() for c in verification.claims],
         "html": html,
+        "pdf": pdf,
         "card": render_card(brief),
         "diff": diff,
         "notes": notes,

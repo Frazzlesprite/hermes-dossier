@@ -17,7 +17,9 @@ Hosts it contacts:
 | The entity's own domain (and pages it links to, e.g. `/about`) | The organisation describing itself |
 | Whatever host your configured Hermes web-search backend returns | Finding candidate pages, which are then fetched in full |
 | `api.github.com` and `github.com` | Public organisation profile and repositories |
-| `news` results from the same search backend | Dated third-party coverage |
+| `www.sec.gov`, `data.sec.gov` | SEC EDGAR: the published ticker file, then filings per CIK (US, no key) |
+| `abr.business.gov.au` | ABN Lookup (Australia, free GUID required) |
+| `api.company-information.service.gov.uk` | Companies House (UK, free API key) |
 
 It stores, in Hermes' per-plugin data directory (`plugin-data/dossier/`):
 
@@ -56,12 +58,17 @@ The brief's footer repeats this in one line. The policy tests are in `tests/test
 | Surface | What you get |
 |---|---|
 | `/dossier <name>` | Build or refresh a dossier, return a card |
-| `/dossier show\|diff\|refresh\|forget <name>` | The other verbs |
-| `dossier_build` / `dossier_show` / `dossier_diff` / `dossier_refresh` / `dossier_forget` | The same five, as tools |
+| `/dossier show\|diff\|refresh\|forget\|watch <name>` | The other verbs |
+| `dossier_build` / `dossier_show` / `dossier_diff` / `dossier_refresh` / `dossier_forget` / `dossier_watch` | The same six, as tools |
 | Desktop → **Dossiers** | The list, the full brief, snapshot history, Refresh and Forget |
-| Full brief | A4 HTML, two pages plus a numbered source appendix |
+| Full brief | A4 **PDF** and HTML, two pages plus a numbered source appendix |
+| Automation blueprint | A scheduled refresh users pick in `/blueprint`, no cron syntax |
 
 A brief has: one line, why they matter to you (drawn from Hermes memory and labelled as memory), facts, recent items, contested or unconfirmed claims, risks, three questions to ask, and the sources.
+
+Adapters: official site, web search, news, GitHub, and company registry (SEC EDGAR out of the box; ABN Lookup and Companies House when a credential is configured). A registry record is a primary source, so it carries the top confidence band.
+
+Person dossiers get the same pipeline with `role` claims instead of `ceo`, and they **require a stated purpose** — the professional context. Without one the build is refused.
 
 ---
 
@@ -98,9 +105,13 @@ Declared in `plugin.yaml`, editable in **Settings → Plugins → Dossier**:
 | `freshness_days` | `90` | Window for the Recent section |
 | `retention_days` | `90` | How long a dossier is kept before it is reported stale |
 | `allow_people` | `true` | Set false to refuse dossiers on individuals |
+| `country` | `""` | Two-letter code for the registry adapter; empty asks every provider that has a credential |
+| `registry_contact` | `""` | Contact email SEC requires in the User-Agent. EDGAR is skipped until this is set |
+| `abn_lookup_guid` | secret | Free ABN Lookup GUID (Australia). Optional |
+| `companies_house_api_key` | secret | Companies House API key (United Kingdom). Optional |
 | `user_agent` | `Dossier/0.1 (+…)` | Identifies the plugin in requests |
 
-There are no API keys and no Python dependencies. The fetcher is `urllib` from the standard library.
+There are no Python dependencies at all — the fetcher is `urllib`, and the PDF writer is 250 lines in `pdf.py`. Nothing to install, nothing to audit.
 
 ---
 
@@ -145,11 +156,10 @@ Two deliberate design choices, both worth knowing before you change anything:
 
 | Spec | Built | Why |
 |---|---|---|
-| Five adapters including a company registry | Four: official site, web search, news, GitHub | No registry key was available. Registry fields render as unverified rather than guessed. The interface is in `adapters/` and adding one is a single module. |
-| `desktop/plugin.js` only | `desktop/plugin.js` **and** `dashboard/plugin_api.py` | The Desktop renderer can only reach Python over HTTP. Without a backend route the page has nothing to call. |
-| PDF via typesetting | A4 HTML with `@page` rules and a print stylesheet | No `typst` on the host. Print-to-PDF from the browser or the Desktop gives the same two pages without adding a dependency. |
 | `validate . --install-deps --ci` | `validate . --install-deps` (or `--json`) | `--ci` is a `doctor` flag, not a `validate` flag in Hermes 0.23.0. |
+| `desktop/plugin.js` only | `desktop/plugin.js` **and** `dashboard/plugin_api.py` | The Desktop renderer can only reach Python over HTTP. Without a backend route the page has nothing to call. |
 | `pre_llm_call` injects brief content | Injects a one-line pointer to an existing dossier only | Claim text in a system turn goes stale silently. The hook says a dossier exists, when it was taken, and offers the diff. |
+| Calendar-triggered refresh | Watchlist cadence plus the automation blueprint | There is no calendar API to read. The cadence and `calendar_hint` are stored and shown; scheduling is the blueprint's cron job, which is the supported seam. |
 
 ---
 
@@ -178,7 +188,16 @@ python scripts/demo_contradiction.py
 
 # the search and news adapters against the real Hermes web_search backend
 python scripts/search_check.py "Kalamari" kalamari.club
+
+# rebuild the 72-second demo video (Pillow + imageio-ffmpeg, dev only)
+python scripts/make_video.py
 ```
+
+`scripts/search_check.py` imports one Hermes internal (`tools.web_tools.web_search_tool`) because there is no way to reach the search backend without a session context. That warning shows up in `hermes plugins validate`; the plugin itself uses `ctx.dispatch_tool` and nothing else.
+
+## Demo
+
+`docs/dossier-demo.mp4` — 72 seconds, built from a real run of `scripts/demo_contradiction.py`, so every figure on screen comes from the pipeline. A saved source set, no network, no model.
 
 Three things that will save you an afternoon:
 

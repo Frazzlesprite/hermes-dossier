@@ -175,7 +175,40 @@ def _best_sentence(text: str, spans: list[tuple[int, int]], needle: str) -> str:
     return next((text[a:b].strip() for a, b in spans if len(text[a:b].split()) >= 6), "")
 
 
-def extract_document(doc: Document, report: Optional[ExtractionReport] = None) -> ExtractionReport:
+_ROLE = re.compile(
+    r"\b(?:is|serves as|works as|joined as)\s+(?:the\s+|a\s+|an\s+)?"
+    r"([A-Za-z][A-Za-z ,'\-]{2,48}?)\s+(?:at|of|with)\s+([A-Z][A-Za-z0-9 .,'&\-]{1,60})",
+)
+_ROLE_ALT = re.compile(
+    r"\b([A-Z][a-z]+(?:\s+[A-Z][a-z'\-]+){1,2})\s*,\s*(?:the\s+)?"
+    r"((?:CEO|CTO|CFO|COO|chief [a-z ]{3,24}|managing director|founder|co-founder|director|head of [A-Za-z ]{2,24}))"
+    r"\s+(?:at|of)\s+([A-Z][A-Za-z0-9 .,'&\-]{1,60})",
+)
+
+
+def _person_role_pass(report: ExtractionReport, doc: Document, text_norm: str, spans: list[tuple[int, int]]) -> None:
+    """Professional role claims, which are the point of a person dossier.
+
+    Only run for person entities: on an organisation page these patterns match
+    sentences about other people, and a dossier on Acme must not claim its
+    cleaner's job title.
+    """
+    for pattern in (_ROLE, _ROLE_ALT):
+        for match in pattern.finditer(text_norm):
+            groups = [g for g in match.groups() if g]
+            value = " ".join(g.strip(" ,") for g in groups)
+            if len(value) > 120:
+                continue
+            quote = _quote_for(text_norm, spans, match.start(), match.end())
+            _accept(report, doc, "role", value, quote, text_norm)
+
+
+def extract_document(
+    doc: Document,
+    report: Optional[ExtractionReport] = None,
+    *,
+    kind: str = "org",
+) -> ExtractionReport:
     report = report or ExtractionReport()
     if not doc.text.strip():
         report.reject("any", f"{doc.url}: empty document")
@@ -208,6 +241,9 @@ def extract_document(doc: Document, report: Optional[ExtractionReport] = None) -
             value = sentence[:200].rstrip(" .,;:")
             _accept(report, doc, "product", value, sentence, text_norm)
 
+    if kind == "person":
+        _person_role_pass(report, doc, text_norm, spans)
+
     _keep_one_product_per_quote(report, doc)
     return report
 
@@ -235,10 +271,10 @@ def _keep_one_product_per_quote(report: ExtractionReport, doc: Document) -> None
     report.claims = rest + list(keep.values())
 
 
-def extract(documents: Iterable[Document]) -> ExtractionReport:
+def extract(documents: Iterable[Document], *, kind: str = "org") -> ExtractionReport:
     report = ExtractionReport()
     for doc in documents:
-        extract_document(doc, report)
+        extract_document(doc, report, kind=kind)
     return report
 
 

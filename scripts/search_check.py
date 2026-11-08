@@ -81,7 +81,7 @@ def main(argv: list[str]) -> int:
             conn=conn,
             search_fn=search_fn,
             domain=domain,
-            config=Config(sources_per_brief=10),
+            config=Config(registry_contact=os.environ.get("DOSSIER_REGISTRY_CONTACT", "")),
             purpose="search check",
         )
     finally:

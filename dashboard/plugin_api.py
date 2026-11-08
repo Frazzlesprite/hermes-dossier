@@ -143,6 +143,26 @@ async def get_brief(entity_id: int) -> HTMLResponse:
     return HTMLResponse(snapshots[0]["brief_html"])
 
 
+@router.get("/dossiers/{entity_id}/brief.pdf")
+async def get_brief_pdf(entity_id: int):
+    from fastapi import Response  # noqa: PLC0415
+
+    _, db, store = _parts()
+    conn = _connect()
+    try:
+        _entity(conn, entity_id)
+        snapshots = store.recent_snapshots(conn, entity_id, limit=1)
+    finally:
+        conn.close()
+    if not snapshots or not snapshots[0].get("brief_pdf"):
+        raise HTTPException(status_code=404, detail="no PDF for this dossier yet; run a refresh")
+    return Response(
+        content=bytes(snapshots[0]["brief_pdf"]),
+        media_type="application/pdf",
+        headers={"Content-Disposition": f'inline; filename="dossier-{entity_id}.pdf"'},
+    )
+
+
 @router.post("/dossiers/{entity_id}/refresh")
 async def refresh(entity_id: int) -> dict[str, Any]:
     """Re-fetch sources and store a new snapshot.
