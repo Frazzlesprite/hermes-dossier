@@ -86,5 +86,6 @@ def acme_web(version: int = 1) -> FakeWeb:
         results=[
             {"url": "https://acme.example/", "title": "Acme Robotics"},
             {"url": "https://acme.example/about", "title": "Acme Robotics"},
+            {"url": "https://news.example/acme-series-b", "title": "Acme Robotics raises $40 million"},
         ],
     )

@@ -96,7 +96,7 @@ def is_own_site(domain: str, candidate_domain: Optional[str]) -> bool:
     return domain == candidate_domain or domain.endswith("." + candidate_domain)
 
 
-def _name_tokens(name: str) -> list[str]:
+def name_tokens(name: str) -> list[str]:
     stop = {"the", "and", "pty", "ltd", "limited", "inc", "llc", "plc", "group", "company", "corp"}
     return [
         token
@@ -140,7 +140,7 @@ def candidates_from_documents(name: str, docs: Iterable[Document], kind: str | N
             )
             continue
         key = domain
-        tokens = _name_tokens(name)
+        tokens = name_tokens(name)
         hit = any(token in domain for token in tokens)
         cand = found.setdefault(
             key,

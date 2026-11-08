@@ -137,6 +137,8 @@ Two deliberate design choices, both worth knowing before you change anything:
 
 **Extraction is gated, not trusted.** The deterministic extractor captures the surrounding sentence as the quote. The optional model path returns a quote too, and both are rejected unless the quote is a verbatim substring of the fetched page text, at least 12 characters, inside the closed predicate set, and clear of every sensitive-category term. Rejections are counted and returned, never silently dropped.
 
+**Ambiguity is stopped, not averaged.** Two same-name entities become a question, never a guess. And for a one-word name — where a homonym is likely — a third-party page is only allowed to contribute claims if it names the entity's own domain. The dropped sources are counted in the brief's notes, so the loss of coverage is visible rather than silent.
+
 ---
 
 ## Deviations from the v1 spec, and why
@@ -173,6 +175,9 @@ python scripts/harness_check.py kalamari.club https://kalamari.club
 
 # the demo case offline: a contradiction, then a leadership change
 python scripts/demo_contradiction.py
+
+# the search and news adapters against the real Hermes web_search backend
+python scripts/search_check.py "Kalamari" kalamari.club
 ```
 
 Three things that will save you an afternoon:

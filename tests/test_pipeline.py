@@ -108,6 +108,41 @@ def test_forget_removes_everything(tmp_path, monkeypatch):
         conn.close()
 
 
+def test_a_one_word_name_does_not_absorb_homonyms(tmp_path, monkeypatch):
+    """'Kalamari' is an app studio and a Paris PR agency and a Greek dish."""
+    web = fakeweb.install(
+        monkeypatch,
+        fakeweb.FakeWeb(
+            pages={
+                "https://kalamari.example/": "<html><head><title>Kalamari</title></head><body><p>Kalamari is an app studio in Canberra.</p></body></html>",
+                "https://pr.example/kalamari-rename": "<html><head><title>Kalamari renames</title></head><body><p>A Paris agency today renamed itself Kalamari.</p></body></html>",
+            },
+            results=[
+                {"url": "https://kalamari.example/", "title": "Kalamari"},
+                {"url": "https://pr.example/kalamari-rename", "title": "Kalamari renames"},
+            ],
+        ),
+    )
+    conn = db.connect(tmp_path / "collision.db")
+    try:
+        result = pipeline.build(
+            "Kalamari", conn=conn, search_fn=web.search, domain="kalamari.example", config=Config()
+        )
+    finally:
+        conn.close()
+
+    assert result["status"] == "ok"
+    used = {item["source_url"] for claim in result["claims"] for item in claim["evidence"]}
+    assert not any("pr.example" in url for url in used), "a homonym contributed a claim"
+    assert any("collision guard" in note for note in result["notes"])
+
+
+def test_a_distinctive_name_keeps_its_coverage(tmp_path, monkeypatch):
+    result = _run(tmp_path, monkeypatch, 1)
+    used = {item["source_url"] for claim in result["claims"] for item in claim["evidence"]}
+    assert any("news.example" in url for url in used), "two-token names should keep third-party coverage"
+
+
 def test_forget_refuses_without_confirmation(tmp_path, monkeypatch):
     _run(tmp_path, monkeypatch, 1)
     import dossier.db as dbmod

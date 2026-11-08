@@ -1,0 +1,110 @@
+r"""Prove the search and news adapters against a real backend response.
+
+The adapters only ever see what `web_search` hands them, so the risk is a shape
+mismatch that fails silently. This runs the real Hermes search tool, prints the
+envelope it returns, then builds a brief through the normal adapters using that
+output — which is the same path a session takes through `ctx.dispatch_tool`.
+
+Run it inside the Hermes environment:
+
+    set HERMES_HOME=%LOCALAPPDATA%\hermes
+    cd %LOCALAPPDATA%\hermes\hermes-agent
+    <hermes venv python> C:\Backpack\dossier-plugin\scripts\search_check.py "Kalamari" kalamari.club
+"""
+
+from __future__ import annotations
+
+import importlib.util
+import json
+import os
+import sys
+import tempfile
+from pathlib import Path
+
+PLUGIN_ROOT = Path(os.environ.get("DOSSIER_PLUGIN_ROOT", r"C:\Backpack\dossier-plugin"))
+
+
+def load_plugin():
+    spec = importlib.util.spec_from_file_location(
+        "dossier", PLUGIN_ROOT / "__init__.py", submodule_search_locations=[str(PLUGIN_ROOT)]
+    )
+    module = importlib.util.module_from_spec(spec)
+    sys.modules["dossier"] = module
+    spec.loader.exec_module(module)
+    return module
+
+
+def main(argv: list[str]) -> int:
+    if not argv:
+        print(__doc__)
+        return 2
+    name = argv[0]
+    domain = argv[1] if len(argv) > 1 else None
+
+    from tools.web_tools import web_search_tool  # noqa: PLC0415 - Hermes' own tool
+
+    query = f'"{name}"'
+    raw = web_search_tool(query, 5)
+    print("=" * 68)
+    print("RAW web_search RESPONSE")
+    print("=" * 68)
+    try:
+        payload = json.loads(raw)
+    except Exception:
+        print(raw[:800])
+        payload = None
+    if isinstance(payload, dict):
+        print("keys:", list(payload.keys()))
+        print(json.dumps(payload, indent=2)[:900])
+    if not payload or payload.get("success") is False:
+        print("\nsearch backend unavailable:", (payload or {}).get("error", "unparseable response"))
+        return 1
+
+    load_plugin()
+    from dossier import db, pipeline  # noqa: PLC0415
+    from dossier.adapters.search import normalise_results  # noqa: PLC0415
+    from dossier.pipeline import Config  # noqa: PLC0415
+
+    results = normalise_results(raw)
+    print("\nnormalised:", len(results), "result(s)")
+    for item in results[:5]:
+        print("  -", item["url"])
+
+    def search_fn(q: str, limit: int):
+        return web_search_tool(q, limit)
+
+    workdir = Path(tempfile.mkdtemp(prefix="dossier-search-"))
+    conn = db.connect(workdir / "search.db")
+    try:
+        result = pipeline.build(
+            name,
+            conn=conn,
+            search_fn=search_fn,
+            domain=domain,
+            config=Config(sources_per_brief=10),
+            purpose="search check",
+        )
+    finally:
+        conn.close()
+
+    print("\nstatus:", result.get("status"), result.get("error") or "")
+    if result.get("status") != "ok":
+        return 1
+    print("counts:", result["counts"])
+    by_type: dict[str, int] = {}
+    for claim in result["claims"]:
+        for item in claim["evidence"]:
+            by_type[item["source_type"]] = by_type.get(item["source_type"], 0) + 1
+    print("evidence by source type:", by_type)
+    print("\nheadline:", result["headline"])
+    print("questions:")
+    for question in result["questions"]:
+        print("  -", question)
+    print("\nnotes:")
+    for note in result["notes"]:
+        print("  -", note)
+    return 0
+
+
+if __name__ == "__main__":
+    raise SystemExit(main(sys.argv[1:]))

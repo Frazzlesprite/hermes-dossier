@@ -180,6 +180,40 @@ def _dedupe_documents(documents: list[Document], limit: int) -> list[Document]:
     return out
 
 
+def _guard_name_collisions(
+    documents: list[Document], candidate: dict[str, Any], notes: list[str]
+) -> list[Document]:
+    """Drop third-party pages that only share a one-word name.
+
+    A single-token name is the collision-prone case: "Kalamari" is a Canberra
+    app studio, a Paris PR agency that renamed itself, a Greek restaurant and a
+    song. For those names we require a page to name the entity's own domain, so
+    a random homonym cannot contribute claims. Multi-token names ("Acme
+    Robotics") are distinctive enough to keep their coverage.
+    """
+    name = candidate.get("name") or ""
+    if len(resolve_mod.name_tokens(name)) >= 2:
+        return documents
+
+    domain = (candidate.get("domain") or "").casefold()
+    kept: list[Document] = []
+    dropped = 0
+    for doc in documents:
+        if doc.source_type in ("official", "registry") or (domain and doc.domain == domain):
+            kept.append(doc)
+        elif domain and domain in doc.text.casefold():
+            kept.append(doc)
+        else:
+            dropped += 1
+
+    if dropped:
+        notes.append(
+            f"collision guard: dropped {dropped} source(s) that mention {name!r} but not "
+            f"{domain or 'its own domain'}; a one-word name is ambiguous"
+        )
+    return kept
+
+
 def build(
     name: str,
     *,
@@ -271,6 +305,7 @@ def build(
         notes.extend(gh["notes"])
 
     documents = _dedupe_documents(collected, config.sources_per_brief)
+    documents = _guard_name_collisions(documents, candidate, notes)
     documents = [upgrade_source_type(d, candidate.get("domain")) for d in documents]
 
     # 3. Extract and verify.
