@@ -215,14 +215,28 @@ class _TextExtractor(HTMLParser):
 
 
 def html_to_text(html: str, limit: int = 40_000) -> tuple[str, str, dict[str, str], list[str]]:
-    """Return (title, text, meta, time values) for an HTML document."""
+    """Return (title, text, meta, time values) for an HTML document.
+
+    Block-level lines are joined with sentence punctuation. Without that, an
+    `<h1>` sitting above the first paragraph fuses into it and the extractor
+    sees one long sentence: "Acme Robotics Acme Robotics builds robots".
+    """
     parser = _TextExtractor()
     try:
         parser.feed(html)
         parser.close()
     except Exception:
         pass
-    text = "\n".join(line.strip() for line in parser.text().splitlines() if line.strip())
+
+    lines: list[str] = []
+    for raw in parser.text().splitlines():
+        line = raw.strip()
+        if not line:
+            continue
+        if lines and not lines[-1].endswith((".", "!", "?", ":", ";")):
+            lines[-1] += "."
+        lines.append(line)
+    text = "\n".join(lines)
     return parser.title.strip(), text[:limit], parser.meta, parser.times
 
 

@@ -81,8 +81,8 @@ def _quote_for(text: str, spans: list[tuple[int, int]], start: int, end: int) ->
 RULES: tuple[tuple[str, re.Pattern[str]], ...] = (
     ("founded", re.compile(r"\b(?:founded|established|incorporated|started|formed)\b[^.\d]{0,20}\b((?:18|19|20)\d{2})\b", re.I)),
     ("employees", re.compile(r"\b(\d[\d,]{0,7})\+?\s+(?:employees|staff|people|team members|workers)\b", re.I)),
-    ("hq", re.compile(r"\b(?:headquartered|head office is|based|located)\s+in\s+([A-Z][A-Za-z.'\- ]{1,60})", re.I)),
-    ("ceo", re.compile(r"\b(?:CEO|chief executive officer|chief executive|managing director)\b\s*(?:is|was|:|\b)\s*([A-Z][A-Za-z.'\-]+(?:\s+[A-Z][A-Za-z.'\-]+){1,3})", re.I)),
+    ("hq", re.compile(r"\b(?i:headquartered|head office is|based|located)\s+in\s+([A-Z][A-Za-z.'\- ]{1,60})")),
+    ("ceo", re.compile(r"\b(?i:CEO|chief executive officer|chief executive|managing director)\b\s*(?:is|was|:|\b)\s*([A-Z][A-Za-z.'\-]+(?:\s+[A-Z][A-Za-z.'\-]+){1,3})")),
     ("funding", re.compile(r"\b(?:raised|secured|closed|announced)\b[^.$]{0,40}?([$€£]\s?\d[\d.,]*\s?(?:million|billion|m|bn|k)?)", re.I)),
     ("product", re.compile(r"\b(?:builds|develops|provides|offers|sells|makes|manufactures)\b\s+([^.;]{3,140})", re.I)),
 )
@@ -208,7 +208,31 @@ def extract_document(doc: Document, report: Optional[ExtractionReport] = None) -
             value = sentence[:200].rstrip(" .,;:")
             _accept(report, doc, "product", value, sentence, text_norm)
 
+    _keep_one_product_per_quote(report, doc)
     return report
+
+
+def _keep_one_product_per_quote(report: ExtractionReport, doc: Document) -> None:
+    """Two product claims from one sentence is noise, not corroboration.
+
+    Runs last, so the full sentence from the page title wins over the fragment a
+    keyword rule pulled out of the same sentence.
+    """
+    keep: dict[str, ClaimDraft] = {}
+    rest: list[ClaimDraft] = []
+    for claim in report.claims:
+        if claim.predicate != "product" or claim.evidence.source_url != doc.url:
+            rest.append(claim)
+            continue
+        digest = claim.evidence.quote_hash
+        current = keep.get(digest)
+        if current is None or len(claim.value) > len(current.value):
+            if current is not None:
+                report.reject("product", "duplicate product quote in one document", current.evidence.quote)
+            keep[digest] = claim
+        else:
+            report.reject("product", "duplicate product quote in one document", claim.evidence.quote)
+    report.claims = rest + list(keep.values())
 
 
 def extract(documents: Iterable[Document]) -> ExtractionReport:

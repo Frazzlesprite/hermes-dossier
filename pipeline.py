@@ -23,7 +23,7 @@ from .adapters.official import collect_official
 from .adapters.search import SearchFn, collect_search
 from .compose import compose
 from .extract import ExtractionReport, extract, extract_with_llm
-from .models import Claim, Document
+from .models import SINGLE_VALUED, SOURCE_TYPES, Claim, Document
 from .render import render_card, render_html
 from .verify import upgrade_source_type, verify
 
@@ -152,14 +152,29 @@ def persist_claims(conn: sqlite3.Connection, entity_id: int, claims: list[Claim]
 
 
 def _dedupe_documents(documents: list[Document], limit: int) -> list[Document]:
-    seen: set[str] = set()
-    out: list[Document] = []
+    """One document per URL, keeping the strongest classification.
+
+    The same page is often fetched twice — once by discovery, once by the news
+    query. Keeping whichever arrived first made a dated article look like a
+    generic search result, so the ranking order decides instead.
+    """
+    rank = {source_type: index for index, source_type in enumerate(SOURCE_TYPES)}
+    best: dict[str, Document] = {}
+    order: list[str] = []
     for doc in documents:
         key = doc.url.split("#")[0].rstrip("/")
-        if key in seen or not doc.text.strip():
+        if not doc.text.strip():
             continue
-        seen.add(key)
-        out.append(doc)
+        if key not in best:
+            best[key] = doc
+            order.append(key)
+            continue
+        if rank.get(doc.source_type, 0) > rank.get(best[key].source_type, 0):
+            best[key] = doc
+
+    out: list[Document] = []
+    for key in order:
+        out.append(best[key])
         if len(out) >= limit:
             break
     return out

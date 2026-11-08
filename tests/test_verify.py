@@ -68,6 +68,18 @@ def test_a_contested_claim_is_never_resolved_to_a_winner():
     assert len(report.claims) == 2
 
 
+def test_a_contained_product_value_folds_into_the_full_one():
+    report = verify(
+        [
+            _draft("product", "warehouse robots", "https://acme.example/about", "official"),
+            _draft("product", "Acme Robotics builds warehouse robots", "https://acme.example/", "official"),
+        ]
+    )
+    assert len(report.claims) == 1
+    assert report.claims[0].value == "Acme Robotics builds warehouse robots"
+    assert len(report.claims[0].evidence) == 2
+
+
 def test_multi_valued_predicates_do_not_contest():
     report = verify(
         [

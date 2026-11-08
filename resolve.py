@@ -55,6 +55,7 @@ class Candidate:
     country: Optional[str] = None
     sources: list[str] = field(default_factory=list)
     score: float = 0.0
+    domain_hit: bool = False
 
     def as_dict(self) -> dict[str, Any]:
         return {
@@ -95,6 +96,15 @@ def is_own_site(domain: str, candidate_domain: Optional[str]) -> bool:
     return domain == candidate_domain or domain.endswith("." + candidate_domain)
 
 
+def _name_tokens(name: str) -> list[str]:
+    stop = {"the", "and", "pty", "ltd", "limited", "inc", "llc", "plc", "group", "company", "corp"}
+    return [
+        token
+        for token in re.findall(r"[a-z0-9]{3,}", (name or "").casefold())
+        if token not in stop
+    ]
+
+
 def candidates_from_documents(name: str, docs: Iterable[Document], kind: str | None = None) -> list[Candidate]:
     """Build candidates from fetched documents, keyed by the site they live on.
 
@@ -130,6 +140,8 @@ def candidates_from_documents(name: str, docs: Iterable[Document], kind: str | N
             )
             continue
         key = domain
+        tokens = _name_tokens(name)
+        hit = any(token in domain for token in tokens)
         cand = found.setdefault(
             key,
             Candidate(
@@ -138,10 +150,13 @@ def candidates_from_documents(name: str, docs: Iterable[Document], kind: str | N
                 domain=domain,
                 sources=[],
                 score=0.0,
+                domain_hit=hit,
             ),
         )
         cand.sources.append(doc.url)
         cand.score += 0.5 if title_match else 0.1
+        if hit:
+            cand.score += 0.6
         if any(k.lower() in title.casefold() for k in ("about", "company", "who we are")):
             cand.score += 0.2
 
@@ -234,6 +249,14 @@ def resolve(
 
     if len(candidates) == 1:
         return {"status": "resolved", "candidate": candidates[0].as_dict(), "candidates": []}
+
+    # A candidate whose domain carries a word from the name is the entity's own
+    # site; an article *about* the entity is not a competing identity. Only
+    # collapse when exactly one candidate looks like that, so a genuine
+    # same-name clash (two "Sarah Chen" profiles) still stops and asks.
+    own_site = [c for c in candidates if c.domain_hit]
+    if len(own_site) == 1:
+        return {"status": "resolved", "candidate": own_site[0].as_dict(), "candidates": []}
 
     if not candidates:
         return {

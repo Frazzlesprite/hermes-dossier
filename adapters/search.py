@@ -17,6 +17,27 @@ from .base import Policy, fetch, html_to_text, now_iso, published_at
 SearchFn = Callable[[str, int], list[dict[str, Any]]]
 
 
+_LIST_KEYS = ("results", "items", "organic", "web", "data", "pages", "documents", "hits")
+
+
+def _find_list(node: Any, depth: int = 0) -> Optional[list]:
+    """Dig a list of results out of whatever envelope the backend uses.
+
+    Hermes' own `web_search` returns ``{"success": bool, "data": {"web": [...]}}``;
+    other backends return ``{"results": [...]}`` or a bare list. Walking the
+    known containers is cheaper than one branch per provider.
+    """
+    if isinstance(node, list):
+        return node
+    if isinstance(node, dict) and depth < 4:
+        for key in _LIST_KEYS:
+            if key in node:
+                found = _find_list(node[key], depth + 1)
+                if found is not None:
+                    return found
+    return None
+
+
 def normalise_results(raw: Any) -> list[dict[str, str]]:
     """Accept the several shapes a search backend may return."""
     items: list[dict[str, str]] = []
@@ -24,16 +45,10 @@ def normalise_results(raw: Any) -> list[dict[str, str]]:
         from .base import json_load
 
         raw = json_load(raw) or {}
-    if isinstance(raw, dict):
-        for key in ("results", "items", "data", "organic"):
-            if isinstance(raw.get(key), list):
-                raw = raw[key]
-                break
-        else:
-            raw = [raw] if raw.get("url") else []
-    if not isinstance(raw, list):
+    found = _find_list(raw)
+    if found is None:
         return items
-    for entry in raw:
+    for entry in found:
         if not isinstance(entry, dict):
             continue
         url = entry.get("url") or entry.get("link") or entry.get("href") or ""
@@ -44,7 +59,11 @@ def normalise_results(raw: Any) -> list[dict[str, str]]:
                 "url": url,
                 "title": str(entry.get("title") or entry.get("name") or ""),
                 "published_at": str(
-                    entry.get("published_at") or entry.get("date") or entry.get("published") or ""
+                    entry.get("published_at")
+                    or entry.get("date")
+                    or entry.get("published")
+                    or entry.get("publishedDate")
+                    or ""
                 ),
             }
         )

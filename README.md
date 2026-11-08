@@ -170,6 +170,9 @@ python scripts/live_check.py kalamari.club
 # the installed plugin through Hermes' own storage, no model involved
 set HERMES_HOME=%LOCALAPPDATA%\hermes
 python scripts/harness_check.py kalamari.club https://kalamari.club
+
+# the demo case offline: a contradiction, then a leadership change
+python scripts/demo_contradiction.py
 ```
 
 Three things that will save you an afternoon:

@@ -54,6 +54,20 @@ def test_an_unrelated_page_does_not_create_a_candidate():
     assert resolve("Acme Robotics", documents=unrelated)["status"] == "not_found"
 
 
+def test_an_article_about_the_entity_is_not_a_competing_identity():
+    docs = [
+        _doc("https://acme.example/", "Acme Robotics", "Acme Robotics builds warehouse robots."),
+        _doc(
+            "https://news.example/acme",
+            "Acme Robotics raises $40 million",
+            "Acme Robotics raised $40 million in a Series B round.",
+        ),
+    ]
+    result = resolve("Acme Robotics", documents=docs)
+    assert result["status"] == "resolved"
+    assert result["candidate"]["domain"] == "acme.example"
+
+
 def test_ambiguous_message_lists_candidates():
     from dossier.resolve import ambiguous_message
 

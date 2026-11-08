@@ -112,6 +112,24 @@ def verify(drafts: Iterable[ClaimDraft]) -> VerificationReport:
         if predicate in SINGLE_VALUED and len(values) > 1
     }
 
+    # A product value contained in another product value is the same claim said
+    # shorter ("warehouse robots" inside "Acme Robotics builds warehouse
+    # robots"). Keep the fuller one and fold the evidence in.
+    product_keys = [key for key in grouped if key[0] == "product"]
+    dropped: set[tuple[str, str]] = set()
+    for short in product_keys:
+        short_value = normalise_space(display_value[short]).casefold()
+        for long in product_keys:
+            if short == long or long in dropped or short in dropped:
+                continue
+            long_value = normalise_space(display_value[long]).casefold()
+            if len(long_value) > len(short_value) and short_value in long_value:
+                grouped[long].extend(grouped[short])
+                dropped.add(short)
+                break
+    for key in dropped:
+        grouped.pop(key, None)
+
     claims: list[Claim] = []
     for key, evidence in grouped.items():
         predicate, _ = key
