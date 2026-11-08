@@ -1,7 +1,7 @@
 """Build the demo video from a real run of the demo case.
 
-Every number on screen comes from `demo_contradiction.run` — headline, dated
-facts, the contested pair, the diff — so the video cannot drift away from what
+Every number on screen comes from `demo_contradiction.run`, headline, dated
+facts, the contested pair, the diff, so the video cannot drift away from what
 the code actually produces. Frames are drawn with Pillow and encoded with the
 ffmpeg binary that imageio-ffmpeg ships.
 
@@ -203,7 +203,7 @@ def scene_contested(t: float, data: dict) -> Image.Image:
     if t > 2.2:
         text(draw, (72, 546), "Why do sources disagree about employees (120, 160)?",
              kind="ui", size=19, fill=INK)
-        text(draw, (72, 578), "— the first of three questions the brief asks the reader to put to someone",
+        text(draw, (72, 578), "- the first of three questions the brief asks the reader to put to someone",
              kind="ui", size=16, fill=MUTED)
     return image
 
@@ -232,7 +232,7 @@ def scene_diff(t: float, data: dict) -> Image.Image:
 
     if t > 2.2:
         text(draw, (104, 352), "2 changes.  Everything else identical.", kind="ui", size=19, fill=MUTED)
-        text(draw, (104, 392), "Unchanged claims are deliberately absent — no noise, no re-reading.",
+        text(draw, (104, 392), "Unchanged claims are deliberately absent. No noise, no re-reading.",
              kind="ui", size=17, fill=MUTED)
     return image
 

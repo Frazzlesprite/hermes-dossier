@@ -61,8 +61,8 @@ def test_an_ambiguous_name_stops_before_writing_anything(tmp_path, monkeypatch):
                 "https://acme.example/team/sarah-chen": fakeweb.AMBIGUOUS_B,
             },
             results=[
-                {"url": "https://harbour.example/team/sarah-chen", "title": "Sarah Chen — Partner, Harbour Fund"},
-                {"url": "https://acme.example/team/sarah-chen", "title": "Sarah Chen — Engineer, Acme Robotics"},
+                {"url": "https://harbour.example/team/sarah-chen", "title": "Sarah Chen - Partner, Harbour Fund"},
+                {"url": "https://acme.example/team/sarah-chen", "title": "Sarah Chen - Engineer, Acme Robotics"},
             ],
         ),
     )

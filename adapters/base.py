@@ -149,8 +149,7 @@ def _raw_get(url: str, policy: Policy, *, allow_robots_file: bool = False) -> Fe
                 content_type=response.headers.get("Content-Type", ""),
                 retrieved_at=now_iso(),
                 final_url=response.geturl(),
-                error="truncated to size cap" if truncated else None,
-            )
+                error="truncated to size cap" if truncated else None)
     except urllib.error.HTTPError as exc:
         return Fetch(url=url, status=exc.code, error=f"HTTP {exc.code}", retrieved_at=now_iso())
     except urllib.error.URLError as exc:
@@ -231,7 +230,7 @@ def html_to_text(html: str, limit: int = 40_000) -> tuple[str, str, dict[str, st
     lines: list[str] = []
     description = (parser.meta.get("description") or parser.meta.get("og:description") or "").strip()
     if description:
-        # The meta description is the page describing itself in one sentence —
+        # The meta description is the page describing itself in one sentence, 
         # the best one-line claim available, and it is part of the document.
         lines.append(description.rstrip(".") + ".")
     for raw in parser.text().splitlines():
@@ -248,8 +247,7 @@ def html_to_text(html: str, limit: int = 40_000) -> tuple[str, str, dict[str, st
 _DATE_PATTERNS = (
     re.compile(r'"datePublished"\s*:\s*"([^"]+)"'),
     re.compile(r'"dateModified"\s*:\s*"([^"]+)"'),
-    re.compile(r'<meta[^>]+property=["\']article:published_time["\'][^>]+content=["\']([^"\']+)'),
-)
+    re.compile(r'<meta[^>]+property=["\']article:published_time["\'][^>]+content=["\']([^"\']+)'))
 
 
 def _normalise_date(value: str) -> Optional[str]:

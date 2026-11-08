@@ -25,7 +25,7 @@ def _brief() -> Brief:
     ev = _evidence()
     return Brief(
         entity={"canonical_name": "Acme Robotics", "kind": "org"},
-        headline="Acme Robotics — warehouse robots",
+        headline="Acme Robotics: warehouse robots",
         sections=[
             Section(id="one_line", title="One line", bullets=(Bullet("Acme builds robots [1, 2026-10-01]", (ev,)),)),
             Section(

@@ -92,7 +92,7 @@ def _recent(claims: Sequence[Claim], index: dict[str, int], freshness_days: int)
         if time.mktime(when) < cutoff:
             continue
         refs = " ".join(_source_ref(e, index) for e in dated[:2])
-        out.append(_bullet(f"{claim.value} — {newest.published_at} {refs}", dated[:2]))
+        out.append(_bullet(f"{claim.value} ({newest.published_at}) {refs}", dated[:2]))
     out.sort(key=lambda b: b.text, reverse=True)
     return out
 
@@ -109,7 +109,7 @@ def _contested(claims: Sequence[Claim], index: dict[str, int]) -> list[Bullet]:
                 evidence.append(item)
         if not pieces:
             continue
-        out.append(_bullet(f"**{predicate.title()} — sources disagree:** " + "; ".join(pieces), evidence))
+        out.append(_bullet(f"**{predicate.title()} (sources disagree):** " + "; ".join(pieces), evidence))
     return out
 
 
@@ -204,10 +204,10 @@ def _headline(name: str, claims: Sequence[Claim]) -> str:
     """
     best = _pick_headline_claim(claims, name)
     if best is None:
-        return f"{name} — no supported one-line description yet"
+        return f"{name}: no supported one-line description yet"
     if best.value.casefold().startswith(name.casefold()) or name.casefold() in best.value.casefold()[:40]:
         return best.value
-    return f"{name} — {best.value}"
+    return f"{name}: {best.value}"
 
 
 def compose(

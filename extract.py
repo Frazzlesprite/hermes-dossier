@@ -1,7 +1,7 @@
 """Claim extraction with a hard evidence gate.
 
 Every claim must carry a quote that is a **verbatim substring of the fetched
-page text**. That single check is what stops the model — or a bad heuristic —
+page text**. That single check is what stops the model, or a bad heuristic, 
 from inventing a fact: a claim whose quote cannot be found is rejected, and the
 rejection is counted rather than hidden.
 
@@ -24,8 +24,7 @@ from .models import (
     ClaimDraft,
     Document,
     Evidence,
-    normalise_space,
-)
+    normalise_space)
 
 _BREAK = re.compile(r"(?<=[.!?])\s+")
 _WORD = re.compile(r"[A-Za-z]{3,}")
@@ -84,8 +83,7 @@ RULES: tuple[tuple[str, re.Pattern[str]], ...] = (
     ("hq", re.compile(r"\b(?i:headquartered|head office is|based|located)\s+in\s+([A-Z][A-Za-z.'\- ]{1,60})")),
     ("ceo", re.compile(r"\b(?i:CEO|chief executive officer|chief executive|managing director)\b\s*(?:is|was|:|\b)\s*([A-Z][A-Za-z.'\-]+(?:\s+[A-Z][A-Za-z.'\-]+){1,3})")),
     ("funding", re.compile(r"\b(?:raised|secured|closed|announced)\b[^.$]{0,40}?([$€£]\s?\d[\d.,]*\s?(?:million|billion|m|bn|k)?)", re.I)),
-    ("product", re.compile(r"\b(?:builds|develops|provides|offers|sells|makes|manufactures)\b\s+([^.;]{3,140})", re.I)),
-)
+    ("product", re.compile(r"\b(?:builds|develops|provides|offers|sells|makes|manufactures)\b\s+([^.;]{3,140})", re.I)))
 
 
 def _policy_hit(*values: str) -> Optional[str]:
@@ -97,7 +95,7 @@ def _policy_hit(*values: str) -> Optional[str]:
 
 
 def _clean_value(predicate: str, value: str) -> str:
-    value = normalise_space(value).strip(" .,-–—:;")
+    value = normalise_space(value).strip(" .,-:;\u2013\u2014")
     if predicate == "employees":
         value = value.replace(",", "")
     if predicate == "hq":
@@ -111,8 +109,7 @@ def _accept(
     predicate: str,
     value: str,
     quote: str,
-    text_norm: str,
-) -> None:
+    text_norm: str) -> None:
     if predicate not in PREDICATES:
         report.reject(predicate, "predicate outside the closed set", quote)
         return
@@ -140,15 +137,13 @@ def _accept(
                 source_type=doc.source_type,
                 quote=quote[:MAX_QUOTE_CHARS],
                 retrieved_at=doc.retrieved_at,
-                published_at=doc.published_at,
-            ),
-        )
+                published_at=doc.published_at))
     )
 
 
 def _title_core(title: str, domain: str) -> str:
     """Strip the site-name furniture out of a page title."""
-    parts = [p.strip(" -–—·|:·") for p in re.split(r"[|·]|\s+[—–-]\s+", title or "")]
+    parts = [p.strip(" -, ·|:·") for p in re.split(r"[|·]|\s+[, -]\s+", title or "")]
     keep = [p for p in parts if p and (domain or "").casefold() not in p.casefold()]
     core = (keep or parts or [title])[0]
     return core[:120]
@@ -177,13 +172,11 @@ def _best_sentence(text: str, spans: list[tuple[int, int]], needle: str) -> str:
 
 _ROLE = re.compile(
     r"\b(?:is|serves as|works as|joined as)\s+(?:the\s+|a\s+|an\s+)?"
-    r"([A-Za-z][A-Za-z ,'\-]{2,48}?)\s+(?:at|of|with)\s+([A-Z][A-Za-z0-9 .,'&\-]{1,60})",
-)
+    r"([A-Za-z][A-Za-z,'\-]{2,48}?)\s+(?:at|of|with)\s+([A-Z][A-Za-z0-9 .,'&\-]{1,60})")
 _ROLE_ALT = re.compile(
     r"\b([A-Z][a-z]+(?:\s+[A-Z][a-z'\-]+){1,2})\s*,\s*(?:the\s+)?"
     r"((?:CEO|CTO|CFO|COO|chief [a-z ]{3,24}|managing director|founder|co-founder|director|head of [A-Za-z ]{2,24}))"
-    r"\s+(?:at|of)\s+([A-Z][A-Za-z0-9 .,'&\-]{1,60})",
-)
+    r"\s+(?:at|of)\s+([A-Z][A-Za-z0-9 .,'&\-]{1,60})")
 
 
 def _person_role_pass(report: ExtractionReport, doc: Document, text_norm: str, spans: list[tuple[int, int]]) -> None:
@@ -196,7 +189,7 @@ def _person_role_pass(report: ExtractionReport, doc: Document, text_norm: str, s
     for pattern in (_ROLE, _ROLE_ALT):
         for match in pattern.finditer(text_norm):
             groups = [g for g in match.groups() if g]
-            value = " ".join(g.strip(" ,") for g in groups)
+            value = " ".join(g.strip(",") for g in groups)
             if len(value) > 120:
                 continue
             quote = _quote_for(text_norm, spans, match.start(), match.end())
@@ -207,8 +200,7 @@ def extract_document(
     doc: Document,
     report: Optional[ExtractionReport] = None,
     *,
-    kind: str = "org",
-) -> ExtractionReport:
+    kind: str = "org") -> ExtractionReport:
     report = report or ExtractionReport()
     if not doc.text.strip():
         report.reject("any", f"{doc.url}: empty document")
@@ -317,8 +309,7 @@ def extract_with_llm(doc: Document, llm: Any, report: Optional[ExtractionReport]
             input=[{"type": "text", "text": doc.text[:12_000]}],
             json_schema=LLM_SCHEMA,
             schema_name="dossier_claims",
-            purpose="dossier.extract",
-        )
+            purpose="dossier.extract")
         parsed = getattr(result, "parsed", None) or {}
     except Exception as exc:  # model unavailable, timeout, bad JSON
         report.reject("any", f"{doc.url}: model extraction failed ({type(exc).__name__})")
@@ -334,6 +325,5 @@ def extract_with_llm(doc: Document, llm: Any, report: Optional[ExtractionReport]
             str(item.get("predicate", "")),
             str(item.get("value", "")),
             str(item.get("quote", "")),
-            text_norm,
-        )
+            text_norm)
     return report

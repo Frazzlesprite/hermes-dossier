@@ -35,13 +35,11 @@ _NOT_OWN_SITE = (
     "forbes.com",
     "github.com",
     "medium.com",
-    "reddit.com",
-)
+    "reddit.com")
 
 _ORG_SUFFIXES = re.compile(
     r"\b(pty\.?\s*ltd|pty|limited|ltd|inc\.?|llc|llp|plc|corp\.?|corporation|company|co\.|gmbh|sa|bv|nv|ag)\b",
-    re.IGNORECASE,
-)
+    re.IGNORECASE)
 
 
 @dataclass
@@ -135,9 +133,7 @@ def candidates_from_documents(name: str, docs: Iterable[Document], kind: str | N
                     disambiguator=_profile_disambiguator(doc),
                     domain=None,
                     sources=[doc.url],
-                    score=0.3,
-                ),
-            )
+                    score=0.3))
             continue
         key = domain
         tokens = name_tokens(name)
@@ -150,9 +146,7 @@ def candidates_from_documents(name: str, docs: Iterable[Document], kind: str | N
                 domain=domain,
                 sources=[],
                 score=0.0,
-                domain_hit=hit,
-            ),
-        )
+                domain_hit=hit))
         cand.sources.append(doc.url)
         cand.score += 0.5 if title_match else 0.1
         if hit:
@@ -177,7 +171,7 @@ def _name_from_title(title: str, domain: str) -> Optional[str]:
     """
     if not title:
         return None
-    parts = [p.strip(" -–—·|:·") for p in re.split(r"[|·]|\s+[—–-]\s+", title)]
+    parts = [p.strip(" -, ·|:·") for p in re.split(r"[|\u00b7]|\s+[\u2014\u2013-]\s+", title)]
     parts = [p for p in parts if p and len(p) <= 48 and domain.casefold() not in p.casefold()]
     if not parts:
         return None
@@ -196,8 +190,7 @@ def resolve(
     disambiguator: Optional[str] = None,
     kind: Optional[str] = None,
     domain: Optional[str] = None,
-    github: Optional[str] = None,
-) -> dict[str, Any]:
+    github: Optional[str] = None) -> dict[str, Any]:
     """Resolve a reference to one candidate, or report why it cannot.
 
     Returns ``{"status": "resolved"|"ambiguous"|"not_found", ...}``. The caller
@@ -222,8 +215,7 @@ def resolve(
                 disambiguator=disambiguator or f"domain {clean_domain}",
                 domain=clean_domain,
                 github=github,
-                score=1.0,
-            ).as_dict(),
+                score=1.0).as_dict(),
             "candidates": [],
         }
 
@@ -277,6 +269,6 @@ def ambiguous_message(result: dict[str, Any]) -> str:
     lines = [f"Which one? {result.get('reason', 'several candidates')}"]
     for i, cand in enumerate(result.get("candidates", []), start=1):
         detail = cand.get("disambiguator") or cand.get("domain") or "no disambiguator"
-        lines.append(f"{i}. {cand['name']} — {detail}")
+        lines.append(f"{i}. {cand['name']}: {detail}")
     lines.append("Reply with the number, or pass `domain=` to pin it.")
     return "\n".join(lines)

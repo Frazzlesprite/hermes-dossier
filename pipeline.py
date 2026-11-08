@@ -60,8 +60,7 @@ class Config:
             allow_people=bool(values["allow_people"]),
             user_agent=str(values["user_agent"]),
             country=str(values.get("country") or ""),
-            registry_contact=str(values.get("registry_contact") or ""),
-        )
+            registry_contact=str(values.get("registry_contact") or ""))
 
     def policy(self) -> Policy:
         return Policy(user_agent=self.user_agent)
@@ -70,8 +69,7 @@ class Config:
 def upsert_entity(conn: sqlite3.Connection, candidate: dict[str, Any], *, purpose: Optional[str], retention_days: int) -> int:
     existing = conn.execute(
         "SELECT id FROM entities WHERE lower(canonical_name) = lower(?) AND COALESCE(domain, '') = COALESCE(?, '')",
-        (candidate["name"], candidate.get("domain")),
-    ).fetchone()
+        (candidate["name"], candidate.get("domain"))).fetchone()
     stamp = now_iso()
     if existing:
         conn.execute(
@@ -85,9 +83,7 @@ def upsert_entity(conn: sqlite3.Connection, candidate: dict[str, Any], *, purpos
                 purpose,
                 retention_days,
                 stamp,
-                existing["id"],
-            ),
-        )
+                existing["id"]))
         conn.commit()
         return int(existing["id"])
 
@@ -107,9 +103,7 @@ def upsert_entity(conn: sqlite3.Connection, candidate: dict[str, Any], *, purpos
             retention_days,
             candidate.get("github"),
             stamp,
-            stamp,
-        ),
-    )
+            stamp))
     conn.commit()
     return int(cursor.lastrowid)
 
@@ -120,21 +114,18 @@ def persist_claims(conn: sqlite3.Connection, entity_id: int, claims: list[Claim]
     for claim in claims:
         row = conn.execute(
             "SELECT id FROM claims WHERE entity_id = ? AND predicate = ? AND value = ?",
-            (entity_id, claim.predicate, claim.value),
-        ).fetchone()
+            (entity_id, claim.predicate, claim.value)).fetchone()
         if row:
             claim_id = int(row["id"])
             conn.execute(
                 "UPDATE claims SET confidence = ?, status = ?, last_seen = ? WHERE id = ?",
-                (claim.confidence, claim.status, stamp, claim_id),
-            )
+                (claim.confidence, claim.status, stamp, claim_id))
         else:
             claim_id = int(
                 conn.execute(
                     "INSERT INTO claims (entity_id, predicate, value, confidence, status, first_seen, last_seen) "
                     "VALUES (?, ?, ?, ?, ?, ?, ?)",
-                    (entity_id, claim.predicate, claim.value, claim.confidence, claim.status, stamp, stamp),
-                ).lastrowid
+                    (entity_id, claim.predicate, claim.value, claim.confidence, claim.status, stamp, stamp)).lastrowid
             )
         ids.append(claim_id)
         for item in claim.evidence:
@@ -152,9 +143,7 @@ def persist_claims(conn: sqlite3.Connection, entity_id: int, claims: list[Claim]
                     item.quote_hash,
                     claim_id,
                     item.quote_hash,
-                    item.source_url,
-                ),
-            )
+                    item.source_url))
     conn.commit()
     return ids
 
@@ -162,7 +151,7 @@ def persist_claims(conn: sqlite3.Connection, entity_id: int, claims: list[Claim]
 def _dedupe_documents(documents: list[Document], limit: int) -> list[Document]:
     """One document per URL, keeping the strongest classification.
 
-    The same page is often fetched twice — once by discovery, once by the news
+    The same page is often fetched twice, once by discovery, once by the news
     query. Keeping whichever arrived first made a dated article look like a
     generic search result, so the ranking order decides instead.
     """
@@ -249,8 +238,7 @@ def build(
     memory_context: Optional[str] = None,
     abn_guid: str = "",
     companies_house_key: str = "",
-    registry_contact: str = "",
-) -> dict[str, Any]:
+    registry_contact: str = "") -> dict[str, Any]:
     config = config or Config()
     policy = config.policy()
     notes: list[str] = []
@@ -265,7 +253,7 @@ def build(
             return {
                 "status": "refused",
                 "error": (
-                    "A dossier on a person needs a stated purpose — the professional context "
+                    "A dossier on a person needs a stated purpose, the professional context "
                     "(e.g. purpose='interview for the platform role on Thursday'). "
                     "Without one it is surveillance, not research."
                 ),
@@ -288,8 +276,7 @@ def build(
         disambiguator=disambiguator,
         kind=kind,
         domain=domain,
-        github=github,
-    )
+        github=github)
     if resolution["status"] != "resolved":
         return {
             "status": resolution["status"],
@@ -327,8 +314,7 @@ def build(
             search_fn,
             limit=3,
             freshness_days=config.freshness_days,
-            policy=policy,
-        )
+            policy=policy)
         collected.extend(news["documents"])
         notes.extend(news["notes"])
 
@@ -343,8 +329,7 @@ def build(
         policy=policy,
         abn_guid=abn_guid,
         companies_house_key=companies_house_key,
-        contact=registry_contact or config.registry_contact,
-    )
+        contact=registry_contact or config.registry_contact)
     collected.extend(registry["documents"])
     notes.extend(registry["notes"])
 
@@ -370,8 +355,7 @@ def build(
         generated_at=stamp,
         freshness_days=config.freshness_days,
         memory_context=memory_context,
-        notes=notes,
-    )
+        notes=notes)
     html = render_html(brief)
     pdf = render_pdf(brief)
     persist_claims(conn, entity_id, verification.claims)
@@ -380,8 +364,7 @@ def build(
     if registry_id:
         conn.execute(
             "UPDATE entities SET registry_id = COALESCE(registry_id, ?), updated_at = ? WHERE id = ?",
-            (registry_id, stamp, entity_id),
-        )
+            (registry_id, stamp, entity_id))
         conn.commit()
 
     snapshot_id = store.save_snapshot(conn, entity_id, stamp, html, verification.claims, pdf)

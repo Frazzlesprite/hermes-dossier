@@ -1,6 +1,6 @@
 """One live brief, end to end, against the real network.
 
-No model, no search backend, no Hermes host — just the official-site and GitHub
+No model, no search backend, no Hermes host, just the official-site and GitHub
 adapters, the deterministic extractor, verification, composition, rendering and
 a throwaway database. If this prints claims with dates, the pipeline works
 outside the test fixtures.
@@ -53,8 +53,7 @@ def main(argv: list[str]) -> int:
             domain=name,
             github=github,
             config=Config(sources_per_brief=8),
-            purpose="live smoke check",
-        )
+            purpose="live smoke check")
     finally:
         conn.close()
 

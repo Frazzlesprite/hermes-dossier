@@ -79,7 +79,7 @@ def connect(path: Optional[Path | str] = None) -> sqlite3.Connection:
     """Open the dossier database and make sure the schema exists.
 
     With no path, uses Hermes' plugin database (WAL, thread-friendly, profile
-    scoped). With a path, uses that file — for tests and for the dashboard
+    scoped). With a path, uses that file, for tests and for the dashboard
     backend, which must not depend on a plugin context.
     """
     if path is None:
@@ -118,13 +118,13 @@ def find_entity(conn: sqlite3.Connection, ref: str) -> Optional[dict[str, Any]]:
 
     Accepts a numeric id or a name/alias match, case-insensitively. If a name
     matches more than one entity the caller must disambiguate, so this returns
-    None rather than guessing — the same rule the resolver follows.
+    None rather than guessing, the same rule the resolver follows.
     """
     ref = (ref or "").strip()
     if not ref:
         return None
     if ref.isdigit():
-        row = conn.execute("SELECT * FROM entities WHERE id = ?", (int(ref),)).fetchone()
+        row = conn.execute("SELECT * FROM entities WHERE id = ?", (int(ref))).fetchone()
         return dict(row) if row else None
 
     exact = conn.execute(
@@ -137,8 +137,7 @@ def find_entity(conn: sqlite3.Connection, ref: str) -> Optional[dict[str, Any]]:
     like = conn.execute(
         "SELECT * FROM entities WHERE lower(canonical_name) LIKE lower(?) "
         "OR lower(COALESCE(aliases, '')) LIKE lower(?)",
-        (f"%{ref}%", f"%{ref}%"),
-    ).fetchall()
+        (f"%{ref}%", f"%{ref}%")).fetchall()
     return dict(like[0]) if len(like) == 1 else None
 
 
@@ -151,8 +150,7 @@ def find_entities(conn: sqlite3.Connection, ref: str) -> list[dict[str, Any]]:
         conn.execute(
             "SELECT * FROM entities WHERE lower(canonical_name) LIKE lower(?) "
             "OR lower(COALESCE(aliases, '')) LIKE lower(?) ORDER BY id",
-            (f"%{ref}%", f"%{ref}%"),
-        ).fetchall()
+            (f"%{ref}%", f"%{ref}%")).fetchall()
     )
 
 
@@ -173,8 +171,7 @@ def set_watch(
     conn.execute(
         "INSERT INTO watchlist (entity_id, cadence, calendar_hint, last_run) VALUES (?, ?, ?, NULL) "
         "ON CONFLICT(entity_id) DO UPDATE SET cadence = excluded.cadence, calendar_hint = excluded.calendar_hint",
-        (entity_id, cadence, calendar_hint),
-    )
+        (entity_id, cadence, calendar_hint))
     conn.commit()
     return get_watch(conn, entity_id) or {}
 

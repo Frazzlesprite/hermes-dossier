@@ -3,7 +3,7 @@ r"""Exercise the installed plugin through Hermes' own storage, without a model.
 The harness routes: load the plugin from the installed location, call the tool
 handlers exactly as the dispatcher would, and let `plugin_db` /
 `plugin_data_dir` resolve to the real Hermes home. This is the check that
-proves storage and the handler contract in the host environment — everything the
+proves storage and the handler contract in the host environment, everything the
 model would do, minus the model.
 
     set HERMES_HOME=%LOCALAPPDATA%\hermes
@@ -51,7 +51,7 @@ def main(argv: list[str]) -> int:
         print(f"not installed at {root}")
         return 1
 
-    print("HERMES_HOME:", os.environ.get("HERMES_HOME") or "(unset — default)")
+    print("HERMES_HOME:", os.environ.get("HERMES_HOME") or "(unset, default)")
     print("plugin dir :", root)
     load_plugin(root)
 

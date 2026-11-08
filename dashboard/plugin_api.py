@@ -5,7 +5,7 @@ bridge: list, detail, refresh, forget, and the rendered brief.
 
 It loads the plugin package by file location, the same way Hermes loads a
 directory plugin, because `dashboard/plugin_api.py` itself is imported as a
-standalone module with no package parent — a relative import here would have
+standalone module with no package parent, a relative import here would have
 nothing to be relative to.
 """
 
@@ -107,8 +107,7 @@ async def get_dossier(entity_id: int) -> dict[str, Any]:
         entity,
         claims,
         generated_at=snapshots[0]["taken_at"],
-        freshness_days=int((entity.get("retention_days") or 90)),
-    )
+        freshness_days=int((entity.get("retention_days") or 90)))
     return {
         "entity": entity,
         "headline": brief.headline,
@@ -159,8 +158,7 @@ async def get_brief_pdf(entity_id: int):
     return Response(
         content=bytes(snapshots[0]["brief_pdf"]),
         media_type="application/pdf",
-        headers={"Content-Disposition": f'inline; filename="dossier-{entity_id}.pdf"'},
-    )
+        headers={"Content-Disposition": f'inline; filename="dossier-{entity_id}.pdf"'})
 
 
 @router.post("/dossiers/{entity_id}/refresh")
@@ -171,7 +169,7 @@ async def refresh(entity_id: int) -> dict[str, Any]:
     session-bound and a plugin backend must not borrow one. That means this
     refresh re-reads the official site and GitHub and re-runs the deterministic
     extractor. For a full sweep, including search and news, run
-    `/dossier refresh <name>` in a session — the card says so.
+    `/dossier refresh <name>` in a session, the card says so.
     """
     pkg, db, _ = _parts()
     conn = _connect()
@@ -191,8 +189,7 @@ async def refresh(entity_id: int) -> dict[str, Any]:
             github=entity.get("github"),
             disambiguator=entity.get("disambiguator"),
             kind=entity.get("kind"),
-            purpose=entity.get("purpose"),
-        )
+            purpose=entity.get("purpose"))
     finally:
         conn.close()
 

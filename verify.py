@@ -1,7 +1,7 @@
 """Verification: confidence, deduplication, contradictions.
 
 The rules are the spec's table, implemented literally, because the table is the
-product. A contested claim is never resolved to a winner — both values survive
+product. A contested claim is never resolved to a winner, both values survive
 with their own sources and dates, and composition prints both.
 """
 
@@ -17,8 +17,7 @@ from .models import (
     ClaimDraft,
     Document,
     Evidence,
-    normalise_space,
-)
+    normalise_space)
 
 TWO_PRIMARY = 0.95
 ONE_PRIMARY = 0.80
@@ -56,8 +55,7 @@ def upgrade_source_type(doc: Document, entity_domain: Optional[str]) -> Document
             retrieved_at=doc.retrieved_at,
             published_at=doc.published_at,
             domain=doc.domain,
-            note=doc.note,
-        )
+            note=doc.note)
     return doc
 
 
@@ -145,8 +143,7 @@ def verify(drafts: Iterable[ClaimDraft]) -> VerificationReport:
                 value=display_value[key],
                 confidence=confidence,
                 status=status,
-                evidence=merged,
-            )
+                evidence=merged)
         )
 
     claims.sort(key=lambda c: (-c.confidence, _ORDER.get(c.predicate, 99), c.value.casefold()))

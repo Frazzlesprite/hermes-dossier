@@ -77,8 +77,7 @@ def collect_search(
     limit: int = 5,
     policy: Optional[Policy] = None,
     source_type: str = "search",
-    skip_domains: set[str] | None = None,
-) -> dict[str, Any]:
+    skip_domains: set[str] | None = None) -> dict[str, Any]:
     notes: list[str] = []
     if search_fn is None:
         return {"documents": [], "notes": [f"search: no search backend configured for {query!r}"]}
@@ -104,11 +103,11 @@ def collect_search(
         seen.add(key)
         page = fetch(result["url"], policy)
         if not page.text:
-            notes.append(f"search: {result['url']} — {page.error or 'unavailable'}")
+            notes.append(f"search: {result['url']}, {page.error or 'unavailable'}")
             continue
         title, text, meta, times = html_to_text(page.text)
         if not text.strip():
-            notes.append(f"search: {result['url']} — no readable text")
+            notes.append(f"search: {result['url']}, no readable text")
             continue
         documents.append(
             Document(
@@ -119,8 +118,7 @@ def collect_search(
                 retrieved_at=page.retrieved_at or now_iso(),
                 published_at=published_at(page.text, times, meta) or (result["published_at"] or None),
                 domain=domain,
-                note=page.error,
-            )
+                note=page.error)
         )
 
     if not documents:

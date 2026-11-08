@@ -1,4 +1,4 @@
-"""Snapshots and the diff — the reason this is a plugin and not a prompt.
+"""Snapshots and the diff, the reason this is a plugin and not a prompt.
 
 A snapshot stores the brief HTML and the claim set as JSON. The diff compares
 the newest snapshot with the one before it and reports only what changed:
@@ -25,12 +25,10 @@ def save_snapshot(
     taken_at: str,
     brief_html: str,
     claims: list[Claim],
-    brief_pdf: bytes | None = None,
-) -> int:
+    brief_pdf: bytes | None = None) -> int:
     cursor = conn.execute(
         "INSERT INTO snapshots (entity_id, taken_at, brief_html, claims_json, brief_pdf) VALUES (?, ?, ?, ?, ?)",
-        (entity_id, taken_at, brief_html, claims_payload(claims), brief_pdf),
-    )
+        (entity_id, taken_at, brief_html, claims_payload(claims), brief_pdf))
     conn.commit()
     return int(cursor.lastrowid)
 
@@ -39,8 +37,7 @@ def recent_snapshots(conn: sqlite3.Connection, entity_id: int, limit: int = 2) -
     rows = conn.execute(
         "SELECT id, entity_id, taken_at, brief_html, brief_pdf, claims_json FROM snapshots "
         "WHERE entity_id = ? ORDER BY taken_at DESC, id DESC LIMIT ?",
-        (entity_id, limit),
-    ).fetchall()
+        (entity_id, limit)).fetchall()
     return [dict(r) for r in rows]
 
 

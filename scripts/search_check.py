@@ -3,7 +3,7 @@ r"""Prove the search and news adapters against a real backend response.
 The adapters only ever see what `web_search` hands them, so the risk is a shape
 mismatch that fails silently. This runs the real Hermes search tool, prints the
 envelope it returns, then builds a brief through the normal adapters using that
-output — which is the same path a session takes through `ctx.dispatch_tool`.
+output, which is the same path a session takes through `ctx.dispatch_tool`.
 
 Run it inside the Hermes environment:
 
@@ -82,8 +82,7 @@ def main(argv: list[str]) -> int:
             search_fn=search_fn,
             domain=domain,
             config=Config(registry_contact=os.environ.get("DOSSIER_REGISTRY_CONTACT", "")),
-            purpose="search check",
-        )
+            purpose="search check")
     finally:
         conn.close()
 

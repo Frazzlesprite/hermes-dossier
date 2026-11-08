@@ -1,4 +1,4 @@
-"""Dossier — sourced, dated, refreshable briefs, and what changed since.
+"""Dossier, sourced, dated, refreshable briefs, and what changed since.
 
 Registration only wires things up. Nothing here touches the network or opens a
 database, because `hermes plugins doctor` and `hermes plugins validate` import
@@ -63,8 +63,7 @@ def recall_dossier(session_id: str = "", user_message: str = "", **kwargs: Any) 
             try:
                 row = conn.execute(
                     "SELECT taken_at FROM snapshots WHERE entity_id = ? ORDER BY taken_at DESC LIMIT 1",
-                    (entity_id,),
-                ).fetchone()
+                    (entity_id)).fetchone()
             finally:
                 conn.close()
             if not row:
@@ -126,8 +125,7 @@ def _register_blueprint(ctx) -> None:
                 {"name": "entity", "type": "text", "label": "Which entity?", "default": "Acme Robotics"},
                 {"name": "time", "type": "time", "label": "What time?", "default": "07:30"},
             ],
-            tags=["research", "dossier"],
-        )
+            tags=["research", "dossier"])
     except Exception:
         logger.debug("dossier: automation blueprint not registered", exc_info=True)
 
@@ -140,8 +138,7 @@ def register(ctx) -> None:
             name=name,
             toolset=PLUGIN_ID,
             schema=schema,
-            handler=(lambda args, _h=handler, **kwargs: _h(args, ctx=ctx, **kwargs)),
-        )
+            handler=(lambda args, _h=handler, **kwargs: _h(args, ctx=ctx, **kwargs)))
 
     ctx.register_hook("pre_llm_call", recall_dossier)
     _register_blueprint(ctx)
@@ -189,8 +186,7 @@ def register(ctx) -> None:
         "dossier",
         handler=_command,
         description="Build, show, diff, refresh or forget a sourced dossier",
-        args_hint="[show|diff|refresh|forget] <name>",
-    )
+        args_hint="[show|diff|refresh|forget] <name>")
 
     skills_dir = Path(__file__).parent / "skills"
     if skills_dir.is_dir() and hasattr(ctx, "register_skill"):

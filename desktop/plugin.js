@@ -1,4 +1,4 @@
-/* Dossier — Desktop surface.
+/* Dossier, Desktop surface.
  *
  * The Desktop half talks to Python over HTTP only: every call here is a route
  * in dashboard/plugin_api.py, mounted at /api/plugins/dossier. There is no
@@ -204,7 +204,7 @@ function DossierPage() {
             ],
           }),
           detail.headline ? jsx('p', { style: S.li, children: detail.headline }) : null,
-          ...(detail.sections || [])
+          ..(detail.sections || [])
             .filter((section) => section.id !== 'sources')
             .map((section) =>
               jsxs(

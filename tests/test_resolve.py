@@ -21,8 +21,8 @@ def _doc(url: str, title: str, text: str) -> Document:
 
 def _sarah() -> list[Document]:
     return [
-        _doc("https://harbour.example/team/sarah-chen", "Sarah Chen — Partner, Harbour Fund", "Sarah Chen is a partner at Harbour Fund, based in Sydney."),
-        _doc("https://acme.example/team/sarah-chen", "Sarah Chen — Engineer, Acme Robotics", "Sarah Chen is a hardware engineer at Acme Robotics, based in Canberra."),
+        _doc("https://harbour.example/team/sarah-chen", "Sarah Chen - Partner, Harbour Fund", "Sarah Chen is a partner at Harbour Fund, based in Sydney."),
+        _doc("https://acme.example/team/sarah-chen", "Sarah Chen - Engineer, Acme Robotics", "Sarah Chen is a hardware engineer at Acme Robotics, based in Canberra."),
     ]
 
 

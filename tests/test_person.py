@@ -10,7 +10,7 @@ from dossier.pipeline import Config
 
 PROFILE = Document(
     url="https://harbour.example/team/sarah-chen",
-    title="Sarah Chen — Partner",
+    title="Sarah Chen - Partner",
     text=(
         "Sarah Chen is a partner at Harbour Fund. "
         "She was previously an analyst at Acme Robotics. "
@@ -52,7 +52,7 @@ def test_a_person_dossier_with_a_purpose_is_allowed(tmp_path, monkeypatch):
         monkeypatch,
         fakeweb.FakeWeb(
             pages={"https://harbour.example/team/sarah-chen": fakeweb.AMBIGUOUS_A},
-            results=[{"url": "https://harbour.example/team/sarah-chen", "title": "Sarah Chen — Partner, Harbour Fund"}],
+            results=[{"url": "https://harbour.example/team/sarah-chen", "title": "Sarah Chen - Partner, Harbour Fund"}],
         ),
     )
     conn = db.connect(tmp_path / "person2.db")

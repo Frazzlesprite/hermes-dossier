@@ -72,7 +72,7 @@ def render_html(brief: Brief, *, title: str = "Dossier") -> str:
 
     body = "\n".join(_section(s) for s in brief.sections if s.id != "sources")
     sources = "".join(
-        f'<li>{html.escape(e.source_url)} — {html.escape(e.published_at or "undated")}, '
+        f'<li>{html.escape(e.source_url)}, {html.escape(e.published_at or "undated")}, '
         f"retrieved {html.escape(e.retrieved_at[:10])}</li>"
         for e in brief.sources
     )
@@ -84,7 +84,7 @@ def render_html(brief: Brief, *, title: str = "Dossier") -> str:
 
     return f"""<!doctype html>
 <html lang="en"><head><meta charset="utf-8">
-<title>{name} — {html.escape(title)}</title>
+<title>{name}: {html.escape(title)}</title>
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <style>{_CSS}</style></head>
 <body><div class="page brief">

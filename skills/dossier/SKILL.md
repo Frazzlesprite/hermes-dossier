@@ -11,7 +11,7 @@ A dossier is a living file keyed to one entity, not a one-shot search. Every cla
 
 - The user is about to meet, call, interview or evaluate an organisation or a person in a professional capacity.
 - The user asks what is known about a company, or what has changed since last time.
-- A brief already exists and may be stale — ask for the diff before trusting it.
+- A brief already exists and may be stale, ask for the diff before trusting it.
 
 Do **not** use it on a private individual with no professional context, or to look up anything in the sensitive categories below.
 
@@ -19,7 +19,7 @@ Do **not** use it on a private individual with no professional context, or to lo
 
 | Call | Use |
 |---|---|
-| `dossier_build` | First look. Pass `domain=` whenever you know it — it pins the entity and prevents a name collision. |
+| `dossier_build` | First look. Pass `domain=` whenever you know it, it pins the entity and prevents a name collision. |
 | `dossier_show` | Read what is already stored, without touching the network. |
 | `dossier_diff` | What changed between the last two snapshots. This is the pre-meeting question. |
 | `dossier_refresh` | Re-fetch and snapshot, then report the diff. |
@@ -31,9 +31,9 @@ Slash equivalents: `/dossier <name>`, `/dossier show|diff|refresh|forget <name>`
 
 1. **Ambiguity is a stop, not a guess.** If `dossier_build` returns `status: ambiguous`, show the candidate list and ask which one. Never pick the first.
 2. **Do not paraphrase a claim past its evidence.** Quote the value and its date. If a claim is `contested`, present both sides; do not choose.
-3. **A gap is a finding.** If a section is empty, say so — "no supported claim" is more useful than a plausible sentence.
+3. **A gap is a finding.** If a section is empty, say so, "no supported claim" is more useful than a plausible sentence.
 4. **State the freshness.** Every brief has a snapshot time. Say it when you present the brief.
-5. **Refuse the sensitive categories.** Health, religion, sexual orientation, political affiliation, ethnicity, trade-union membership, home address, family, precise location. If the user asks for them, decline and say why — the schema cannot store them anyway.
+5. **Refuse the sensitive categories.** Health, religion, sexual orientation, political affiliation, ethnicity, trade-union membership, home address, family, precise location. If the user asks for them, decline and say why, the schema cannot store them anyway.
 
 ## Presenting a brief
 

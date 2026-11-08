@@ -47,7 +47,7 @@ DIFF = {
     "description": (
         "Report what changed in an entity's dossier since the previous snapshot: new claims, "
         "dropped claims, and claims whose confidence or status moved. This is the pre-meeting "
-        "question — 'what is different since I last looked?'"
+        "question, 'what is different since I last looked?'"
     ),
     "parameters": {
         "type": "object",

@@ -32,10 +32,10 @@ NEWS_PAGE = """<html><head><title>Acme Robotics raises $40 million</title>
 </head><body><p>Acme Robotics raised $40 million in a Series B round led by Harbour Fund.</p>
 <p>The company said the money would fund a second factory.</p></body></html>"""
 
-AMBIGUOUS_A = """<html><head><title>Sarah Chen — Partner, Harbour Fund</title></head>
+AMBIGUOUS_A = """<html><head><title>Sarah Chen - Partner, Harbour Fund</title></head>
 <body><p>Sarah Chen is a partner at Harbour Fund, based in Sydney.</p></body></html>"""
 
-AMBIGUOUS_B = """<html><head><title>Sarah Chen — Engineer, Acme Robotics</title></head>
+AMBIGUOUS_B = """<html><head><title>Sarah Chen - Engineer, Acme Robotics</title></head>
 <body><p>Sarah Chen is a hardware engineer at Acme Robotics, based in Canberra.</p></body></html>"""
 
 

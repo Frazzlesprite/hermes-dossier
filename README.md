@@ -1,6 +1,6 @@
 # Dossier
 
-**Sourced, dated, refreshable briefs on organisations and people in a professional public capacity — and what changed since you last looked.**
+**Sourced, dated, refreshable briefs on organisations and people in a professional public capacity, and what changed since you last looked.**
 
 Every sentence in a brief carries a source, a publication date and a retrieval date. If a claim has no evidence row, it does not print. A disagreement between sources is not resolved: it is printed as contested, with both sides and both dates.
 
@@ -29,7 +29,7 @@ It stores, in Hermes' per-plugin data directory (`plugin-data/dossier/`):
 
 It does **not** read credentials, `.env` files, browser profiles or other plugins' data. It has no telemetry and makes no analytics calls. If a model is available to the session, extracted claims are model-assisted but pass the same quote-verification gate as the deterministic extractor.
 
-`/dossier forget <name>` — or the Delete button in the Desktop — removes the entity, its claims, its evidence and every snapshot.
+`/dossier forget <name>`, or the Delete button in the Desktop, removes the entity, its claims, its evidence and every snapshot.
 
 ---
 
@@ -41,8 +41,8 @@ This section exists because the obvious version of this plugin is a privacy prob
 
 **Not allowed, and not implemented:**
 
-- **no sensitive-category inference or storage** — health, religion, sexual orientation, political affiliation, ethnicity, trade-union membership. These are refused at extraction, before a claim can reach the database, and no column exists to hold them;
-- **no non-public personal data** — home address, personal phone, family members, precise location;
+- **no sensitive-category inference or storage:** health, religion, sexual orientation, political affiliation, ethnicity, trade-union membership. These are refused at extraction, before a claim can reach the database, and no column exists to hold them;
+- **no non-public personal data:** home address, personal phone, family members, precise location;
 - **no allegations presented as fact** without a court record;
 - **no scraping behind a login** or against a site's terms;
 - **no dossier on a private individual** with no professional context.
@@ -68,7 +68,7 @@ A brief has: one line, why they matter to you (drawn from Hermes memory and labe
 
 Adapters: official site, web search, news, GitHub, and company registry (SEC EDGAR out of the box; ABN Lookup and Companies House when a credential is configured). A registry record is a primary source, so it carries the top confidence band.
 
-Person dossiers get the same pipeline with `role` claims instead of `ceo`, and they **require a stated purpose** — the professional context. Without one the build is refused.
+Person dossiers get the same pipeline with `role` claims instead of `ceo`, and they **require a stated purpose:** the professional context. Without one the build is refused.
 
 ---
 
@@ -111,7 +111,7 @@ Declared in `plugin.yaml`, editable in **Settings → Plugins → Dossier**:
 | `companies_house_api_key` | secret | Companies House API key (United Kingdom). Optional |
 | `user_agent` | `Dossier/0.1 (+…)` | Identifies the plugin in requests |
 
-There are no Python dependencies at all — the fetcher is `urllib`, and the PDF writer is 250 lines in `pdf.py`. Nothing to install, nothing to audit.
+There are no Python dependencies at all: the fetcher is `urllib`, and the PDF writer is 250 lines in `pdf.py`. Nothing to install, nothing to audit.
 
 ---
 
@@ -144,11 +144,11 @@ name ──► resolve.py ──► one entity, or a question
 
 Two deliberate design choices, both worth knowing before you change anything:
 
-**Composition is deterministic.** `compose.py` applies templates to verified claims. It does not ask a model to write prose. That makes an unsourced sentence impossible by construction rather than by prompt discipline — and it means the same claim set always renders the same brief.
+**Composition is deterministic.** `compose.py` applies templates to verified claims. It does not ask a model to write prose. That makes an unsourced sentence impossible by construction rather than by prompt discipline, and it means the same claim set always renders the same brief.
 
 **Extraction is gated, not trusted.** The deterministic extractor captures the surrounding sentence as the quote. The optional model path returns a quote too, and both are rejected unless the quote is a verbatim substring of the fetched page text, at least 12 characters, inside the closed predicate set, and clear of every sensitive-category term. Rejections are counted and returned, never silently dropped.
 
-**Ambiguity is stopped, not averaged.** Two same-name entities become a question, never a guess. And for a one-word name — where a homonym is likely — a third-party page is only allowed to contribute claims if it names the entity's own domain. The dropped sources are counted in the brief's notes, so the loss of coverage is visible rather than silent.
+**Ambiguity is stopped, not averaged.** Two same-name entities become a question, never a guess. And for a one-word name, where a homonym is likely, a third-party page is only allowed to contribute claims if it names the entity's own domain. The dropped sources are counted in the brief's notes, so the loss of coverage is visible rather than silent.
 
 ---
 
@@ -197,13 +197,13 @@ python scripts/make_video.py
 
 ## Demo
 
-`docs/dossier-demo.mp4` — 72 seconds, built from a real run of `scripts/demo_contradiction.py`, so every figure on screen comes from the pipeline. A saved source set, no network, no model.
+`docs/dossier-demo.mp4`: 72 seconds, built from a real run of `scripts/demo_contradiction.py`, so every figure on screen comes from the pipeline. A saved source set, no network, no model.
 
 Three things that will save you an afternoon:
 
 1. **The plugin root is a package.** Hermes loads it with `spec_from_file_location(..., submodule_search_locations=[plugin_dir])`, so internal imports are relative. A flat `import db` fails at load time, not at test time.
 2. **Run pytest as `python -m pytest tests`.** `tests/pytest.ini` sets the rootdir to `tests` on purpose; without it the collector climbs out of the repo and tries to import the root `__init__.py` as a top-level module.
-3. **Do not touch `ctx.llm` inside `register()`.** It is a property, and the validation probe's recording context does not stub properties — `register()` would raise and the `capability probe` check would fail. Model access belongs in handlers.
+3. **Do not touch `ctx.llm` inside `register()`.** It is a property, and the validation probe's recording context does not stub properties, so `register()` raises and the `capability probe` check fails. Model access belongs in handlers.
 
 ---
 

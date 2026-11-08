@@ -2,7 +2,7 @@
 
 Two sources disagree about headcount, so the brief prints both and refuses to
 pick. Then a second run changes the CEO, so the diff reports one change and
-stays quiet about everything else. No network, no model, no timing luck — the
+stays quiet about everything else. No network, no model, no timing luck, the
 same run every time, which is the point when a 90-second video only gets one
 take.
 
@@ -29,8 +29,7 @@ ABOUT_V1 = """<html><head><title>Acme Robotics</title>
 
 ABOUT_V2 = ABOUT_V1.replace(
     "Our CEO is Dana Whitfield and she has led the company since 2019.",
-    "Our CEO is Priya Raman, appointed in October 2026.",
-)
+    "Our CEO is Priya Raman, appointed in October 2026.")
 
 NEWS = """<html><head><title>Acme Robotics says headcount has grown to 160 employees</title>
 <meta property="article:published_time" content="2026-10-02T09:00:00Z"></head><body>
@@ -79,8 +78,7 @@ def install_web(pages: dict[str, str], results: list[dict[str, str]]):
                 return base.Fetch(url=url, status=404, error="HTTP 404", retrieved_at="2026-11-09T00:00:00Z")
             return base.Fetch(
                 url=url, status=200, text=html, content_type="text/html",
-                retrieved_at="2026-11-09T00:00:00Z", final_url=url,
-            )
+                retrieved_at="2026-11-09T00:00:00Z", final_url=url)
 
         def search(self, query, limit):
             return results[:limit]
@@ -140,7 +138,7 @@ def main() -> int:
         print()
 
         print("=" * 68)
-        print("CONTESTED — printed as two sides, not a winner")
+        print("CONTESTED: printed as two sides, not a winner")
         print("=" * 68)
         for claim in first["claims"]:
             if claim["status"] == "contested":
@@ -156,7 +154,7 @@ def main() -> int:
         second = pipeline.build("Acme Robotics", conn=conn, search_fn=web.search, config=config)
         diff = second.get("diff") or {}
         print("=" * 68)
-        print(f"REFRESH — {diff.get('changed_count', 0)} change(s) since {diff.get('from')}")
+        print(f"REFRESH: {diff.get('changed_count', 0)} change(s) since {diff.get('from')}")
         print("=" * 68)
         for item in diff.get("added", []):
             print(f"  + {item['predicate']}: {item['value']}")

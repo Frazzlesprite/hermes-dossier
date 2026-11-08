@@ -1,6 +1,6 @@
 """A small A4 PDF writer, because the host has no typesetting engine.
 
-Base-14 Helvetica only, no embedded fonts, no dependencies — which means the
+Base-14 Helvetica only, no embedded fonts, no dependencies, which means the
 PDF is generated everywhere the plugin runs and the catalog has nothing extra to
 install or audit.
 
@@ -133,8 +133,7 @@ def render_pdf(brief: Brief) -> bytes:
     writer.text(
         MARGIN_X, writer.y, SMALL, "regular",
         f"{kind}  |  brief generated {brief.generated_at}  |  {len(brief.sources)} source(s)",
-        gray=0.4,
-    )
+        gray=0.4)
     writer._space(18.0)
 
     for section in brief.sections:
@@ -157,8 +156,7 @@ def render_pdf(brief: Brief) -> bytes:
     writer.block(
         "Built from public sources only. No inference of health, religion, sexuality, politics, "
         "ethnicity or union membership. Delete with /dossier forget <name>.",
-        size=7.2, gray=0.45, leading=9.6,
-    )
+        size=7.2, gray=0.45, leading=9.6)
 
     # Appendix
     writer.new_page()
@@ -167,8 +165,7 @@ def render_pdf(brief: Brief) -> bytes:
     writer.block(
         "Every claim above cites one of these. Dates are publication dates where the page states "
         "one, otherwise retrieval dates.",
-        size=8.6, gray=0.4, leading=11.0,
-    )
+        size=8.6, gray=0.4, leading=11.0)
     writer._space(8.0)
     for number, source in enumerate(brief.sources, start=1):
         date = source.published_at or f"retrieved {source.retrieved_at[:10]}"

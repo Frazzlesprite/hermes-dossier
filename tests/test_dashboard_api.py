@@ -2,7 +2,7 @@
 
 The Desktop page can only reach Python through these routes, so a broken route
 is a broken button. This loads `dashboard/plugin_api.py` exactly the way Hermes
-does — as a standalone module with no package parent — which is also the check
+does, as a standalone module with no package parent, which is also the check
 that its imports survive that.
 """
 

@@ -2,9 +2,9 @@
 
 Three providers, in order of what needs a key:
 
-* **SEC EDGAR** (US) — no key, so it is the one that runs out of the box.
-* **ABN Lookup** (AU) — free, needs a GUID registered by email.
-* **Companies House** (UK) — free, needs an API key.
+* **SEC EDGAR** (US), no key, so it is the one that runs out of the box.
+* **ABN Lookup** (AU), free, needs a GUID registered by email.
+* **Companies House** (UK), free, needs an API key.
 
 A provider with no credential is skipped with a note, never faked. Registry
 records are *primary* sources, which is why they carry the top confidence in
@@ -49,8 +49,8 @@ def _load_tickers(policy: Optional[Policy] = None) -> dict[str, int]:
     """company name (casefolded) -> CIK, cached for a week.
 
     `www.sec.gov/cgi-bin/browse-edgar` is disallowed by the site's robots.txt,
-    so the lookup uses the published ticker file instead — which is a bulk file
-    meant for exactly this — and then the JSON submissions API per CIK.
+    so the lookup uses the published ticker file instead, which is a bulk file
+    meant for exactly this, and then the JSON submissions API per CIK.
     """
     now = time.time()
     if _ticker_cache["entries"] and now - _ticker_cache["at"] < EDGAR_TTL_SECONDS:
@@ -99,7 +99,7 @@ def _match_cik(name: str, entries: dict[str, int]) -> Optional[int]:
         return entries[wanted]
     starts = [(title, cik) for title, cik in entries.items() if title.startswith(wanted)]
     if starts:
-        # "Apple Inc." beats "Apple Hospitality REIT, Inc." — the parent company
+        # "Apple Inc." beats "Apple Hospitality REIT, Inc.", the parent company
         # is the one with the shortest registered title.
         return min(starts, key=lambda pair: len(pair[0]))[1]
     contains = [cik for title, cik in entries.items() if wanted in title]
@@ -121,8 +121,7 @@ def _with_user_agent(policy: Optional[Policy], user_agent: str) -> Policy:
         max_bytes=base.max_bytes,
         respect_robots=base.respect_robots,
         min_interval=base.min_interval,
-        extra_headers=dict(base.extra_headers),
-    )
+        extra_headers=dict(base.extra_headers))
 
 
 def _document(url: str, title: str, lines: list[str], note: str) -> Document:
@@ -134,8 +133,7 @@ def _document(url: str, title: str, lines: list[str], note: str) -> Document:
         retrieved_at=now_iso(),
         published_at=None,
         domain=urllib.parse.urlparse(url).hostname or "",
-        note=note,
-    )
+        note=note)
 
 
 # --------------------------------------------------------------------- EDGAR
@@ -170,7 +168,7 @@ def collect_edgar(name: str, policy: Optional[Policy] = None, *, contact: str = 
     if not isinstance(payload, dict):
         return {
             "documents": [],
-            "notes": [f"registry(EDGAR): CIK {cik} found but submissions were unreadable — {submissions.error or 'no JSON'}"],
+            "notes": [f"registry(EDGAR): CIK {cik} found but submissions were unreadable, {submissions.error or 'no JSON'}"],
         }
 
     registrant = _quote(payload.get("name") or name)
@@ -193,8 +191,7 @@ def collect_edgar(name: str, policy: Optional[Policy] = None, *, contact: str = 
     dates = filings.get("filingDate") or []
     annual = next(
         ((form, date) for form, date in zip(forms, dates) if form in ("10-K", "20-F", "40-F")),
-        None,
-    )
+        None)
     chosen = annual or next(
         ((form, date) for form, date in zip(forms, dates) if form == "10-Q"), None
     )
@@ -203,10 +200,9 @@ def collect_edgar(name: str, policy: Optional[Policy] = None, *, contact: str = 
 
     doc = _document(
         f"https://www.sec.gov/cgi-bin/browse-edgar?action=getcompany&CIK={cik}",
-        f"{registrant} — SEC EDGAR",
+        f"{registrant}, SEC EDGAR",
         lines,
-        "rendered from the public SEC EDGAR API",
-    )
+        "rendered from the public SEC EDGAR API")
     return {"documents": [doc], "notes": []}
 
 
@@ -229,7 +225,7 @@ def collect_abn(name: str, guid: str, policy: Optional[Policy] = None) -> dict[s
     matched = fetch(ABN_MATCH.format(q=urllib.parse.quote(name), guid=guid), policy)
     payload = _jsonp(matched.text) if matched.text else None
     if not isinstance(payload, dict) or payload.get("Message"):
-        return {"documents": [], "notes": [f"registry(ABN): lookup refused — {(payload or {}).get('Message') or matched.error or 'no response'}"]}
+        return {"documents": [], "notes": [f"registry(ABN): lookup refused, {(payload or {}).get('Message') or matched.error or 'no response'}"]}
 
     names = payload.get("Names") or []
     if not names:
@@ -260,10 +256,9 @@ def collect_abn(name: str, guid: str, policy: Optional[Policy] = None) -> dict[s
 
     doc = _document(
         f"https://abr.business.gov.au/ABN/View?abn={abn}",
-        f"{entity_name} — ABN Lookup",
+        f"{entity_name}, ABN Lookup",
         lines,
-        "rendered from the public ABN Lookup service",
-    )
+        "rendered from the public ABN Lookup service")
     return {"documents": [doc], "notes": []}
 
 
@@ -281,8 +276,7 @@ def _ch_policy(api_key: str, policy: Optional[Policy]) -> Policy:
         max_bytes=base.max_bytes,
         respect_robots=base.respect_robots,
         min_interval=base.min_interval,
-        extra_headers=headers,
-    )
+        extra_headers=headers)
 
 
 def collect_companies_house(name: str, api_key: str, policy: Optional[Policy] = None) -> dict[str, Any]:
@@ -294,7 +288,7 @@ def collect_companies_house(name: str, api_key: str, policy: Optional[Policy] = 
     payload = json_load(search.text) if search.text else None
     items = (payload or {}).get("items") or []
     if not items:
-        return {"documents": [], "notes": [f"registry(Companies House): no company matched {name!r} — {search.error or 'no results'}"]}
+        return {"documents": [], "notes": [f"registry(Companies House): no company matched {name!r}, {search.error or 'no results'}"]}
 
     number = items[0].get("company_number")
     if not number:
@@ -323,10 +317,9 @@ def collect_companies_house(name: str, api_key: str, policy: Optional[Policy] = 
 
     doc = _document(
         f"https://find-and-update.company-information.service.gov.uk/company/{number}",
-        f"{company} — Companies House",
+        f"{company}, Companies House",
         lines,
-        "rendered from the public Companies House API",
-    )
+        "rendered from the public Companies House API")
     return {"documents": [doc], "notes": []}
 
 
@@ -337,8 +330,7 @@ def collect_registry(
     policy: Optional[Policy] = None,
     abn_guid: str = "",
     companies_house_key: str = "",
-    contact: str = "",
-) -> dict[str, Any]:
+    contact: str = "") -> dict[str, Any]:
     """Query every provider that has a credential, and say what was skipped."""
     documents: list[Document] = []
     notes: list[str] = []
@@ -356,7 +348,7 @@ def collect_registry(
         try:
             result = run()
         except Exception as exc:  # a registry outage is a note, not a crash
-            notes.append(f"registry: provider failed — {type(exc).__name__}: {exc}")
+            notes.append(f"registry: provider failed, {type(exc).__name__}: {exc}")
             continue
         documents.extend(result.get("documents") or [])
         notes.extend(result.get("notes") or [])
