@@ -155,10 +155,21 @@ Two deliberate design choices, both worth knowing before you change anything:
 
 ```bash
 python -m venv .venv
-.venv\Scripts\pip install pytest pyyaml
+.venv\Scripts\pip install pytest pyyaml fastapi
 .venv\Scripts\python -m pytest tests
 hermes plugins doctor . --ci
 hermes plugins validate . --install-deps
+```
+
+Two scripts do the unglamorous work of proving it outside the fixtures:
+
+```bash
+# one live brief against the real network, throwaway database
+python scripts/live_check.py kalamari.club
+
+# the installed plugin through Hermes' own storage, no model involved
+set HERMES_HOME=%LOCALAPPDATA%\hermes
+python scripts/harness_check.py kalamari.club https://kalamari.club
 ```
 
 Three things that will save you an afternoon:
