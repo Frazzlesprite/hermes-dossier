@@ -16,7 +16,7 @@ from dossier.adapters import official as official_mod
 from dossier.adapters import search as search_mod
 
 ACME_ABOUT_V1 = """<html><head><title>Acme Robotics</title>
-<meta name="description" content="Acme Robotics builds warehouse robots.">
+<meta name="description" content="Acme Robotics builds autonomous warehouse robots for mid-sized logistics operators.">
 </head><body>
 <h1>Acme Robotics</h1>
 <p>Acme Robotics builds autonomous warehouse robots for mid-sized logistics operators.</p>

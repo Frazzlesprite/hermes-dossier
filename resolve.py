@@ -95,7 +95,10 @@ def is_own_site(domain: str, candidate_domain: Optional[str]) -> bool:
 
 
 def name_tokens(name: str) -> list[str]:
-    stop = {"the", "and", "pty", "ltd", "limited", "inc", "llc", "plc", "group", "company", "corp"}
+    stop = {
+        "the", "and", "pty", "ltd", "limited", "inc", "llc", "plc", "group", "company",
+        "corp", "corporation", "incorporated", "holdings", "pbc",
+    }
     return [
         token
         for token in re.findall(r"[a-z0-9]{3,}", (name or "").casefold())

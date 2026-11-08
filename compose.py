@@ -62,13 +62,25 @@ def _bullet(text: str, evidence: Sequence[Evidence]) -> Bullet:
     return Bullet(text=text, evidence=tuple(evidence))
 
 
+def _refs(evidence: Sequence[Evidence], index: dict[str, int], limit: int = 2) -> str:
+    """Citation markers, deduplicated: one marker per source and date."""
+    seen: list[str] = []
+    for item in evidence:
+        marker = _source_ref(item, index)
+        if marker not in seen:
+            seen.append(marker)
+        if len(seen) >= limit:
+            break
+    return " ".join(seen)
+
+
 def _facts(claims: Sequence[Claim], index: dict[str, int]) -> list[Bullet]:
     out: list[Bullet] = []
     for predicate in FACT_ORDER:
         for claim in claims:
-            if claim.predicate != predicate or claim.status == "contested":
+            if claim.predicate != predicate or claim.status != "supported":
                 continue
-            refs = " ".join(_source_ref(e, index) for e in claim.evidence[:2])
+            refs = _refs(claim.evidence, index)
             out.append(_bullet(f"**{FACT_LABEL[predicate]}:** {claim.value} {refs}".strip(), claim.evidence[:2]))
     return out
 
@@ -91,7 +103,7 @@ def _recent(claims: Sequence[Claim], index: dict[str, int], freshness_days: int)
             continue
         if time.mktime(when) < cutoff:
             continue
-        refs = " ".join(_source_ref(e, index) for e in dated[:2])
+        refs = _refs(dated, index)
         out.append(_bullet(f"{claim.value} ({newest.published_at}) {refs}", dated[:2]))
     out.sort(key=lambda b: b.text, reverse=True)
     return out
@@ -110,6 +122,19 @@ def _contested(claims: Sequence[Claim], index: dict[str, int]) -> list[Bullet]:
         if not pieces:
             continue
         out.append(_bullet(f"**{predicate.title()} (sources disagree):** " + "; ".join(pieces), evidence))
+
+    for claim in claims:
+        if claim.status != "unconfirmed" or not claim.evidence:
+            continue
+        item = claim.evidence[0]
+        date = item.published_at or item.retrieved_at[:10]
+        out.append(
+            _bullet(
+                f"**{claim.predicate.title()} (unconfirmed):** {claim.value} "
+                f"({item.source_url}, {date})",
+                claim.evidence[:1],
+            )
+        )
     return out
 
 
@@ -191,8 +216,13 @@ def _pick_headline_claim(claims: Sequence[Claim], name: str = "") -> Optional[Cl
         score -= depth
         if 30 <= len(claim.value) <= 200:
             score += 1
+        if claim.value.startswith(("(", "[", "-")):
+            score -= 2
         if score > best_score:
             best, best_score = claim, score
+        elif score == best_score and best is not None and len(claim.value) < len(best.value):
+            # Same evidence, shorter sentence: usually the cleaner one-liner.
+            best = claim
     return best
 
 
@@ -247,7 +277,14 @@ def compose(
     sections.append(Section(id="facts", title="Facts", bullets=tuple(facts)))
 
     recent = _recent(claims, index, freshness_days)
-    sections.append(Section(id="recent", title="Recent", bullets=tuple(recent)))
+    sections.append(
+        Section(
+            id="recent",
+            title="Recent",
+            bullets=tuple(recent),
+            note=None if recent else f"No dated item inside the last {freshness_days} days.",
+        )
+    )
 
     contested = _contested(claims, index)
     sections.append(

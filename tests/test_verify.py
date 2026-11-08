@@ -80,6 +80,31 @@ def test_a_contained_product_value_folds_into_the_full_one():
     assert len(report.claims[0].evidence) == 2
 
 
+def test_one_source_giving_a_series_is_unconfirmed_not_contested():
+    """Wikipedia listing headcounts for 2003, 2012 and 2021 is a timeline."""
+    url = "https://en.wikipedia.org/wiki/Valve_Corporation"
+    report = verify(
+        [
+            _draft("employees", "60", url, "search"),
+            _draft("employees", "250", url, "search"),
+            _draft("employees", "350", url, "search"),
+        ]
+    )
+    assert report.contested == 0
+    assert {c.status for c in report.claims} == {"unconfirmed"}
+    assert any("single source" in note for note in report.notes)
+
+
+def test_two_different_sources_still_contest():
+    report = verify(
+        [
+            _draft("employees", "120", "https://acme.example/about", "official"),
+            _draft("employees", "160", "https://news.example/a", "news"),
+        ]
+    )
+    assert report.contested == 1
+
+
 def test_multi_valued_predicates_do_not_contest():
     report = verify(
         [

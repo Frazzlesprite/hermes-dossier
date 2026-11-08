@@ -37,6 +37,7 @@ def _page(url: str, policy: Optional[Policy]) -> tuple[Optional[Document], list[
         published_at=published_at(result.text, times, meta),
         domain=domain,
         note=result.error,
+        description=(meta.get("description") or meta.get("og:description") or "").strip() or None,
     )
     links = []
     for href in _ABOUT.findall(result.text):

@@ -27,14 +27,21 @@ def collect_news(
     )
     kept = []
     stale = 0
+    undated = 0
     for doc in result["documents"]:
-        if doc.published_at:
-            age = _age_days(doc.published_at)
-            if age is not None and age > freshness_days:
-                stale += 1
-                continue
+        if not doc.published_at:
+            # A page with no publication date is not a dated news item, and the
+            # Recent section needs dates. Leave it to the search adapter.
+            undated += 1
+            continue
+        age = _age_days(doc.published_at)
+        if age is not None and age > freshness_days:
+            stale += 1
+            continue
         kept.append(doc)
     notes = list(result["notes"])
+    if undated:
+        notes.append(f"news: {undated} page(s) had no publication date and were not treated as news")
     if stale:
         notes.append(f"news: dropped {stale} item(s) older than {freshness_days} days")
     return {"documents": kept, "notes": notes}

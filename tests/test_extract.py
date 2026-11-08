@@ -74,6 +74,42 @@ def test_an_unsupported_predicate_is_rejected():
     assert any("closed set" in r["reason"] for r in report.rejected)
 
 
+def test_a_third_party_quote_must_name_the_entity():
+    """A sentence about Nvidia is not a fact about Valve."""
+    page = Document(
+        url="https://news.example/chips",
+        title="Chip deal",
+        text="Nvidia CEO Jensen Huang said the deal was the largest of its kind.",
+        source_type="news",
+        retrieved_at="2026-11-09T00:00:00Z",
+        domain="news.example",
+    )
+    report = extract([page], entity_name="Valve Corporation", entity_domain="valvesoftware.com")
+    assert not [c for c in report.claims if c.predicate == "ceo"]
+    assert any("does not name the entity" in r["reason"] for r in report.rejected)
+
+
+def test_a_page_on_the_entity_domain_needs_no_name_in_the_sentence():
+    """Their own About page can say "Founded in 2014" without repeating the name."""
+    report = extract(
+        [PAGE], entity_name="Acme Robotics", entity_domain="acme.example"
+    )
+    assert {c.predicate for c in report.claims} >= {"founded", "employees"}
+
+
+def test_founded_ignores_a_project_that_started():
+    page = Document(
+        url="https://en.wikipedia.org/wiki/Thing",
+        title="Thing",
+        text="Valve game started around late 2016, with the largest team in Valve's history.",
+        source_type="search",
+        retrieved_at="2026-11-09T00:00:00Z",
+        domain="en.wikipedia.org",
+    )
+    report = extract([page], entity_name="Valve Corporation")
+    assert not [c for c in report.claims if c.predicate == "founded"]
+
+
 def test_a_model_failure_is_a_note_not_a_crash():
     class Broken:
         def complete_structured(self, **kwargs):

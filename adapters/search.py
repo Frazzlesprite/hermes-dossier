@@ -118,7 +118,8 @@ def collect_search(
                 retrieved_at=page.retrieved_at or now_iso(),
                 published_at=published_at(page.text, times, meta) or (result["published_at"] or None),
                 domain=domain,
-                note=page.error)
+                note=page.error,
+                description=(meta.get("description") or meta.get("og:description") or "").strip() or None)
         )
 
     if not documents:

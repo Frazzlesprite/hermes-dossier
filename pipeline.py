@@ -338,7 +338,12 @@ def build(
     documents = [upgrade_source_type(d, candidate.get("domain")) for d in documents]
 
     # 3. Extract and verify.
-    report: ExtractionReport = extract(documents, kind=candidate.get("kind") or "org")
+    report: ExtractionReport = extract(
+        documents,
+        kind=candidate.get("kind") or "org",
+        entity_name=candidate.get("name") or "",
+        entity_domain=candidate.get("domain") or "",
+    )
     if llm is not None:
         for doc in documents[:6]:
             extract_with_llm(doc, llm, report)

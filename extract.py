@@ -78,12 +78,12 @@ def _quote_for(text: str, spans: list[tuple[int, int]], start: int, end: int) ->
 
 # (predicate, pattern). The value is group 1.
 RULES: tuple[tuple[str, re.Pattern[str]], ...] = (
-    ("founded", re.compile(r"\b(?:founded|established|incorporated|started|formed)\b[^.\d]{0,20}\b((?:18|19|20)\d{2})\b", re.I)),
+    ("founded", re.compile(r"\b(?:was\s+)?(?:founded|established|incorporated)\b\s*(?:in\s+)?((?:1[89]|20)\d{2})\b", re.I)),
     ("employees", re.compile(r"\b(\d[\d,]{0,7})\+?\s+(?:employees|staff|people|team members|workers)\b", re.I)),
     ("hq", re.compile(r"\b(?i:headquartered|head office is|based|located)\s+in\s+([A-Z][A-Za-z.'\- ]{1,60})")),
     ("ceo", re.compile(r"\b(?i:CEO|chief executive officer|chief executive|managing director)\b\s*(?:is|was|:|\b)\s*([A-Z][A-Za-z.'\-]+(?:\s+[A-Z][A-Za-z.'\-]+){1,3})")),
     ("funding", re.compile(r"\b(?:raised|secured|closed|announced)\b[^.$]{0,40}?([$€£]\s?\d[\d.,]*\s?(?:million|billion|m|bn|k)?)", re.I)),
-    ("product", re.compile(r"\b(?:builds|develops|provides|offers|sells|makes|manufactures)\b\s+([^.;]{3,140})", re.I)))
+)
 
 
 def _policy_hit(*values: str) -> Optional[str]:
@@ -103,13 +103,34 @@ def _clean_value(predicate: str, value: str) -> str:
     return value
 
 
+STABLE_PREDICATES = frozenset({"founded", "employees", "hq", "ceo", "role", "funding"})
+
+
+def _mentions_entity(quote: str, entity_name: str) -> bool:
+    """Does the quote name the entity at all?
+
+    Word boundaries matter: "valves" is not "valve", while "Valve Corporation"
+    still matches a page that says only "Valve".
+    """
+    if not entity_name:
+        return False
+    haystack = normalise_space(quote).casefold()
+    for token in re.findall(r"[a-z0-9]{3,}", entity_name.casefold()):
+        if re.search(rf"\b{re.escape(token)}\b", haystack):
+            return True
+    return False
+
+
 def _accept(
     report: ExtractionReport,
     doc: Document,
     predicate: str,
     value: str,
     quote: str,
-    text_norm: str) -> None:
+    text_norm: str,
+    *,
+    self_described: bool = True,
+    entity_name: str = "") -> None:
     if predicate not in PREDICATES:
         report.reject(predicate, "predicate outside the closed set", quote)
         return
@@ -123,6 +144,11 @@ def _accept(
         return
     if quote not in text_norm:
         report.reject(predicate, "quote is not verbatim in the source", quote)
+        return
+    if predicate in STABLE_PREDICATES and not self_described and not _mentions_entity(quote, entity_name):
+        # "Nvidia CEO Jensen Huang said..." is not a fact about the entity we
+        # are building a dossier on, however true the sentence is.
+        report.reject(predicate, "third-party page does not name the entity in the quote", quote)
         return
     hit = _policy_hit(value, quote)
     if hit:
@@ -179,7 +205,15 @@ _ROLE_ALT = re.compile(
     r"\s+(?:at|of)\s+([A-Z][A-Za-z0-9 .,'&\-]{1,60})")
 
 
-def _person_role_pass(report: ExtractionReport, doc: Document, text_norm: str, spans: list[tuple[int, int]]) -> None:
+def _person_role_pass(
+    report: ExtractionReport,
+    doc: Document,
+    text_norm: str,
+    spans: list[tuple[int, int]],
+    *,
+    self_described: bool = True,
+    entity_name: str = "",
+) -> None:
     """Professional role claims, which are the point of a person dossier.
 
     Only run for person entities: on an organisation page these patterns match
@@ -193,14 +227,24 @@ def _person_role_pass(report: ExtractionReport, doc: Document, text_norm: str, s
             if len(value) > 120:
                 continue
             quote = _quote_for(text_norm, spans, match.start(), match.end())
-            _accept(report, doc, "role", value, quote, text_norm)
+            _accept(
+                report, doc, "role", value, quote, text_norm,
+                self_described=self_described, entity_name=entity_name)
+
+
+def _first_sentence(text: str) -> str:
+    normalised = normalise_space(text)
+    match = re.match(r"(.{10,200}?[.!?])(\s|$)", normalised)
+    return match.group(1) if match else normalised[:200]
 
 
 def extract_document(
     doc: Document,
     report: Optional[ExtractionReport] = None,
     *,
-    kind: str = "org") -> ExtractionReport:
+    kind: str = "org",
+    entity_name: str = "",
+    entity_domain: str = "") -> ExtractionReport:
     report = report or ExtractionReport()
     if not doc.text.strip():
         report.reject("any", f"{doc.url}: empty document")
@@ -209,32 +253,42 @@ def extract_document(
     text_norm = normalise_space(doc.text)
     spans = _sentences(text_norm)
 
+    # A page speaking about itself needs no name in the sentence ("Founded in
+    # 2014..." is fine on their own site). Anywhere else the quote has to name
+    # the entity, or we are collecting facts about somebody else.
+    self_described = doc.source_type in ("official", "registry") or (
+        bool(entity_domain) and doc.domain == entity_domain
+    )
+    context = {"self_described": self_described, "entity_name": entity_name}
+
     for predicate, pattern in RULES:
         for match in pattern.finditer(text_norm):
             value = match.group(1)
             quote = _quote_for(text_norm, spans, match.start(1), match.end(1))
-            _accept(report, doc, predicate, value, quote, text_norm)
+            _accept(report, doc, predicate, value, quote, text_norm, **context)
 
     # A news item is a dated headline: the claim is "this was reported".
     if doc.source_type == "news" and doc.title:
         first = text_norm[:400]
         quote = _quote_for(text_norm, spans, 0, min(1, len(text_norm)))
-        if quote and doc.title.casefold()[:40] in text_norm.casefold():
-            _accept(report, doc, "news", doc.title, quote, text_norm)
-        elif quote:
-            _accept(report, doc, "news", doc.title, quote, text_norm)
+        if quote:
+            _accept(report, doc, "news", doc.title, quote, text_norm, **context)
 
-    # The organisation describing itself in one line is the best product claim.
-    # The claim's value is the sentence itself, so the headline says something.
-    if doc.source_type in ("official", "search") and doc.title:
+    # The page describing itself in one line is the best product claim. A site's
+    # meta description is written for exactly this; a sentence picked out of the
+    # body is the fallback, and only on the entity's own page.
+    if doc.description and len(doc.description) >= 15 and not doc.description.startswith("("):
+        value = _first_sentence(doc.description)
+        _accept(report, doc, "product", value, value, text_norm, **context)
+    elif doc.source_type == "official" and doc.title:
         core = _title_core(doc.title, doc.domain)
         sentence = _best_sentence(text_norm, spans, core)
-        if sentence and len(sentence) >= 20:
+        if sentence and len(sentence) >= 20 and sentence[:1].isupper():
             value = sentence[:200].rstrip(" .,;:")
-            _accept(report, doc, "product", value, sentence, text_norm)
+            _accept(report, doc, "product", value, sentence, text_norm, **context)
 
     if kind == "person":
-        _person_role_pass(report, doc, text_norm, spans)
+        _person_role_pass(report, doc, text_norm, spans, **context)
 
     _keep_one_product_per_quote(report, doc)
     return report
@@ -263,10 +317,18 @@ def _keep_one_product_per_quote(report: ExtractionReport, doc: Document) -> None
     report.claims = rest + list(keep.values())
 
 
-def extract(documents: Iterable[Document], *, kind: str = "org") -> ExtractionReport:
+def extract(
+    documents: Iterable[Document],
+    *,
+    kind: str = "org",
+    entity_name: str = "",
+    entity_domain: str = "",
+) -> ExtractionReport:
     report = ExtractionReport()
     for doc in documents:
-        extract_document(doc, report, kind=kind)
+        extract_document(
+            doc, report, kind=kind, entity_name=entity_name, entity_domain=entity_domain
+        )
     return report
 
 

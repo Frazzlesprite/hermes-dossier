@@ -83,6 +83,16 @@ def main(argv: list[str]) -> int:
             domain=domain,
             config=Config(registry_contact=os.environ.get("DOSSIER_REGISTRY_CONTACT", "")),
             purpose="search check")
+
+        second = None
+        if "--second-run" in argv:
+            second = pipeline.build(
+                name,
+                conn=conn,
+                search_fn=search_fn,
+                domain=domain,
+                config=Config(registry_contact=os.environ.get("DOSSIER_REGISTRY_CONTACT", "")),
+                purpose="search check")
     finally:
         conn.close()
 
@@ -102,6 +112,34 @@ def main(argv: list[str]) -> int:
     print("\nnotes:")
     for note in result["notes"]:
         print("  -", note)
+
+    if "--claims" in argv:
+        print("\nclaims:")
+        for claim in result["claims"]:
+            first = claim["evidence"][0]
+            print(f"  [{claim['status']:<9}] {claim['predicate']:<10} {claim['value'][:52]!r}")
+            print(f"              {first['source_type']}: {first['source_url']}")
+            print(f"              \"{first['quote'][:120]}\"")
+
+    if second is not None:
+        diff = second.get("diff") or {}
+        print("\nsecond run:")
+        print("  counts:", second.get("counts"))
+        print("  diff  :", diff.get("changed_count", 0), "change(s) since", diff.get("from"))
+        for item in diff.get("added", [])[:5]:
+            print("    +", item["predicate"], item["value"])
+        for item in diff.get("removed", [])[:5]:
+            print("    -", item["predicate"], item["value"])
+        for item in diff.get("changed", [])[:5]:
+            print("    ~", item["predicate"], item["value"], item["from"], "->", item["to"])
+
+    out_dir = Path(tempfile.gettempdir())
+    html_path = out_dir / "dossier-search.html"
+    html_path.write_text(result["html"], encoding="utf-8")
+    pdf_path = out_dir / "dossier-search.pdf"
+    pdf_path.write_bytes(result["pdf"])
+    print("\nhtml:", html_path)
+    print("pdf :", pdf_path, f"({len(result['pdf'])} bytes)")
     return 0
 
 

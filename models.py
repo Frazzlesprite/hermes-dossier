@@ -97,6 +97,7 @@ class Document:
     published_at: Optional[str] = None
     domain: str = ""
     note: Optional[str] = None
+    description: Optional[str] = None
 
     @property
     def is_fetched(self) -> bool:

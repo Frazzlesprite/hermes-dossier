@@ -20,14 +20,16 @@ from .base import Policy, fetch, now_iso
 API = "https://api.github.com"
 
 
-def _get_json(path: str, policy: Optional[Policy]) -> Any:
+def _get_json(path: str, policy: Optional[Policy]) -> tuple[Any, Optional[str]]:
     result = fetch(API + path, policy)
     if not result.text:
-        return None
+        return None, result.error or "no response"
+    if result.status != 200:
+        return None, result.error or f"HTTP {result.status}"
     try:
-        return json.loads(result.text)
+        return json.loads(result.text), None
     except Exception:
-        return None
+        return None, "unparseable JSON"
 
 
 def _slug_from_url(value: str) -> Optional[str]:
@@ -61,7 +63,10 @@ def collect_github(
     if not slug:
         return {"documents": [], "notes": ["github: no organisation slug known"]}
 
-    org = _get_json(f"/orgs/{slug}", policy)
+    org, error = _get_json(f"/orgs/{slug}", policy)
+    if error:
+        hint = " (unauthenticated GitHub allows 60 requests an hour)" if "403" in error else ""
+        return {"documents": [], "notes": [f"github: organisation lookup failed, {error}{hint}"]}
     if not isinstance(org, dict) or not org.get("login"):
         return {"documents": [], "notes": [f"github: no public organisation {slug!r}"]}
 
@@ -76,7 +81,7 @@ def collect_github(
                 ],
             }
 
-    repos = _get_json(f"/orgs/{slug}/repos?sort=pushed&direction=desc&per_page=5", policy)
+    repos, _repos_error = _get_json(f"/orgs/{slug}/repos?sort=pushed&direction=desc&per_page=5", policy)
     repos = repos if isinstance(repos, list) else []
 
     lines = [f"{org.get('name') or slug} is a GitHub organisation."]
@@ -106,5 +111,6 @@ def collect_github(
         published_at=None,
         domain="github.com",
         note="rendered from the public GitHub REST API",
+        description=str(org.get("description") or "").strip() or None,
     )
     return {"documents": [doc], "notes": []}

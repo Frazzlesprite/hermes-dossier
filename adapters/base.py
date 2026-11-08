@@ -266,22 +266,40 @@ def _normalise_date(value: str) -> Optional[str]:
 
 
 def published_at(html: str, times: list[str], meta: dict[str, str]) -> Optional[str]:
-    """The best publication date we can honestly claim, or None."""
-    for key in ("article:published_time", "datepublished", "publish-date", "date"):
+    """The best publication date we can honestly claim, or None.
+
+    Only signals that actually mean "published": an article meta tag, a JSON-LD
+    datePublished, or a `<time>` element on a page that declares itself an
+    article. A bare `<time>` or `date` meta key is usually a copyright line or a
+    navigation timestamp, and a wrong date is worse than no date.
+    """
+    for key in ("article:published_time", "article:published", "og:published_time", "datepublished", "publish-date"):
         if key in meta:
             got = _normalise_date(meta[key])
             if got:
                 return got
-    for match in _DATE_PATTERNS:
-        found = match.search(html or "")
-        if found:
-            got = _normalise_date(found.group(1))
+    declares_article = (
+        (meta.get("og:type") or "").casefold() == "article"
+        or (meta.get("og:type") or "").casefold() == "newsarticle"
+    )
+    has_article_meta = "article:published_time" in meta or "article:published" in meta
+    news_jsonld = re.search(
+        r'"@type"\s*:\s*"(?:NewsArticle|BlogPosting|ReportageNewsArticle)"', html or "", re.I
+    )
+    if declares_article or has_article_meta or news_jsonld:
+        for match in _DATE_PATTERNS:
+            found = match.search(html or "")
+            if found:
+                got = _normalise_date(found.group(1))
+                if got:
+                    return got
+        for value in times:
+            got = _normalise_date(value)
             if got:
                 return got
-    for value in times:
-        got = _normalise_date(value)
-        if got:
-            return got
+    # A wiki declaring "datePublished: 2001" is describing when the page was
+    # first created, not when the sentence we quote was written. No date is
+    # more honest than a 25-year-old one.
     return None
 
 

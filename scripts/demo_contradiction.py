@@ -19,7 +19,7 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[1]
 
 ABOUT_V1 = """<html><head><title>Acme Robotics</title>
-<meta name="description" content="Acme Robotics builds warehouse robots."></head><body>
+<meta name="description" content="Acme Robotics builds autonomous warehouse robots for mid-sized logistics operators."></head><body>
 <h1>Acme Robotics</h1>
 <p>Acme Robotics builds autonomous warehouse robots for mid-sized logistics operators.</p>
 <p>Founded in 2014, the company employs 120 employees across three sites.</p>

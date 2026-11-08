@@ -96,19 +96,32 @@ def verify(drafts: Iterable[ClaimDraft]) -> VerificationReport:
     grouped: dict[tuple[str, str], list[Evidence]] = {}
     values_by_predicate: dict[str, list[str]] = {}
     display_value: dict[tuple[str, str], str] = {}
+    urls_by_value: dict[tuple[str, str], set[str]] = {}
 
     for draft in drafts:
         grouped.setdefault(draft.key, []).append(draft.evidence)
         display_value.setdefault(draft.key, draft.value)
+        urls_by_value.setdefault(draft.key, set()).add(draft.evidence.source_url)
         bucket = values_by_predicate.setdefault(draft.predicate, [])
         if draft.key[1] not in {normalise_space(v).casefold() for v in bucket}:
             bucket.append(draft.value)
 
-    contested_predicates = {
-        predicate
-        for predicate, values in values_by_predicate.items()
-        if predicate in SINGLE_VALUED and len(values) > 1
-    }
+    # Disagreement means *different sources* disagree. One page quoting a
+    # headcount for 2003, 2012 and 2021 is a timeline, not a contradiction.
+    contested_predicates = set()
+    historical_predicates = set()
+    for predicate, values in values_by_predicate.items():
+        if predicate not in SINGLE_VALUED or len(values) < 2:
+            continue
+        keys = [
+            (predicate, normalise_space(value).casefold())
+            for value in values
+        ]
+        sources = set().union(*(urls_by_value.get(key, set()) for key in keys))
+        if len(sources) >= 2:
+            contested_predicates.add(predicate)
+        else:
+            historical_predicates.add(predicate)
 
     # A product value contained in another product value is the same claim said
     # shorter ("warehouse robots" inside "Acme Robotics builds warehouse
@@ -137,6 +150,10 @@ def verify(drafts: Iterable[ClaimDraft]) -> VerificationReport:
         if predicate in contested_predicates:
             status = "contested"
             confidence = CONTESTED
+        elif predicate in historical_predicates:
+            # One source, several values: a series, not a disagreement.
+            status = "unconfirmed"
+            confidence = UNCONFIRMED
         claims.append(
             Claim(
                 predicate=predicate,
@@ -150,6 +167,11 @@ def verify(drafts: Iterable[ClaimDraft]) -> VerificationReport:
     notes = []
     for predicate in sorted(contested_predicates):
         notes.append(f"contested: {predicate} has {len(values_by_predicate[predicate])} conflicting values")
+    for predicate in sorted(historical_predicates):
+        notes.append(
+            f"unconfirmed: {predicate} has {len(values_by_predicate[predicate])} values from a single source "
+            "(read as a series, not agreement)"
+        )
     return VerificationReport(claims=claims, contested=len(contested_predicates), notes=notes)
 
 
