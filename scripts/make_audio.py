@@ -56,10 +56,10 @@ def build(
 
     events = make_music.Mix(duration)
     for start in starts[1:]:
-        make_music.swell(events, max(0.0, start - 2.0), 50, gain=0.10, length=2.0)
+        make_music.riser(events, max(0.0, start - 2.0), gain=0.18, length=2.0)
         make_music.impact(events, start, gain=0.30)
     for moment in cues.get("ticks", ()):
-        make_music.hat(events, float(moment), gain=0.35, open_hat=True)
+        make_music.open_hat(events, float(moment), gain=0.3)
     music = music + events.buf
 
     lines = cues.get("voice") or []

@@ -1,10 +1,10 @@
-"""A Tron-ish score: analog saw stacks, 16th pulse, gated snares, sidechain.
+"""Late-90s / early-2000s trance: 140 BPM, rolling bass, supersaws.
 
-The reference is Daft Punk's Tron: Legacy rather than disco: minor progression,
-pulsing filtered arpeggio, wide detuned pads, big gated snare, and a mix that
-breathes with the kick. All oscillators, so nothing to license.
+The reference is the uplifting end of the genre rather than the Tron score:
+A minor, a sixteen-step rolling bassline, open hats on every offbeat, a
+supersaw chord bed and a lead that arrives after the breakdown.
 
-Styles: intro, build, main, lift, break, outro.
+Everything is oscillators, so nothing to license.
 """
 
 from __future__ import annotations
@@ -14,25 +14,33 @@ import math
 import numpy as np
 
 RATE = 44100
-BPM = 120.0
-BEAT = 60.0 / BPM
+BPM = 140.0
+BEAT = 60.0 / BPM          # 0.4286 s
 BAR = BEAT * 4
+SIXTEENTH = BEAT / 4
 
-# D minor with a VI-VII turn: i, VI, III, VII, i, VI, iv, V.
+# Am, F, C, G twice, with a G# turn at the end of the second phrase.
 CHORDS = [
-    ([62, 65, 69], 38),   # Dm
-    ([58, 62, 65], 34),   # Bb
-    ([57, 60, 65], 41),   # F
-    ([60, 64, 67], 36),   # C
-    ([62, 65, 69], 38),   # Dm
-    ([58, 62, 65], 34),   # Bb
-    ([55, 58, 62], 43),   # Gm
-    ([57, 61, 64], 33),   # A
+    ([57, 60, 64], 33),   # Am
+    ([53, 57, 60], 29),   # F
+    ([48, 52, 55], 36),   # C
+    ([55, 59, 62], 31),   # G
+    ([57, 60, 64], 33),   # Am
+    ([53, 57, 60], 29),   # F
+    ([55, 59, 62], 31),   # G
+    ([56, 59, 63], 28),   # G# dim, the turn
 ]
 
-# A four-bar phrase that resolves down, played on a saw lead in the lift.
-MOTIF = [(0.0, 74, 1.5), (1.5, 72, 0.5), (2.0, 69, 1.0), (3.0, 67, 1.0),
-         (4.0, 69, 1.5), (5.5, 67, 0.5), (6.0, 65, 2.0)]
+# The rolling pattern, in semitones from the root. This is the genre.
+ROLL = [0, 0, 12, 0, 0, 12, 0, 7, 0, 0, 12, 0, 0, 12, 7, 12]
+
+# Lead phrase: (bar, beat, note, length in beats).
+LEAD = [
+    (0.0, 0.0, 76, 1.5), (0.0, 1.5, 74, 0.5), (0.0, 2.0, 72, 1.0), (0.0, 3.0, 71, 1.0),
+    (1.0, 0.0, 72, 1.5), (1.0, 1.5, 71, 0.5), (1.0, 2.0, 69, 2.0),
+    (2.0, 0.0, 76, 1.5), (2.0, 1.5, 79, 0.5), (2.0, 2.0, 81, 1.0), (2.0, 3.0, 79, 1.0),
+    (3.0, 0.0, 76, 3.0),
+]
 
 
 def midi(note: int) -> float:
@@ -73,144 +81,132 @@ class Mix:
         self.buf[i:j, 1] += chunk * right
 
 
-# ---------------------------------------------------------------- oscillators
+# ------------------------------------------------------------------- supersaw
 
 
-def saw_stack(freq: float, n: int, *, harmonics: int = 9, bright: float = 0.55,
-              detune: float = 0.006) -> np.ndarray:
-    """Additive saw with a controllable rolloff, two slightly detuned voices.
+def supersaw(freq: float, n: int, *, voices: int = 7, detune: float = 0.013,
+             harmonics: int = 6, bright: float = 0.45) -> np.ndarray:
+    """Detuned saw stack: the defining sound of the era.
 
-    `bright` sets the harmonic decay per sample, which is how the filter sweep
-    is approximated without a stateful filter loop.
+    Each voice gets its own fixed phase offset, otherwise the detune comb
+    filters into a buzz at the attack.
     """
     t = _t(n)
     out = np.zeros(n, dtype=np.float32)
-    for voice, cents in ((1.0, 1.0), (1.0, 1.0 + detune), (1.0, 1.0 - detune)):
+    if voices <= 1:
+        spreads = [0.0]
+    else:
+        spreads = [detune * (2.0 * i / (voices - 1) - 1.0) for i in range(voices)]
+    for index, spread in enumerate(spreads):
+        phase = (index * 0.37) % 1.0
         for h in range(1, harmonics + 1):
             amp = (bright ** (h - 1)) / h
-            if amp < 0.004:
+            if amp < 0.01:
                 break
-            out += (np.sin(2 * np.pi * freq * h * cents * t) * amp).astype(np.float32)
-    return out / 3.0
+            out += (np.sin(2 * np.pi * freq * (1.0 + spread) * h * t + phase * h) * amp).astype(np.float32)
+    return out / max(1, voices)
 
 
-def sweep_stack(freq: float, n: int, *, dark: float = 0.18, light: float = 0.72,
-                rise: bool = True) -> np.ndarray:
-    """Crossfade a dark and a bright version: a filter sweep in two passes."""
-    curve = np.linspace(0.0, 1.0, n, dtype=np.float32)
-    if not rise:
-        curve = curve[::-1].copy()
-    low = saw_stack(freq, n, bright=dark, harmonics=6)
-    high = saw_stack(freq, n, bright=light, harmonics=11)
-    return low * (1.0 - curve) + high * curve
+# -------------------------------------------------------------------- elements
 
 
-# ------------------------------------------------------------------- elements
-
-
-def kick(mix: Mix, at: float, gain: float = 0.95) -> None:
-    n = int(0.24 * RATE)
+def kick(mix: Mix, at: float, gain: float = 0.9) -> None:
+    n = int(0.19 * RATE)
     t = _t(n)
-    body = np.sin(2 * np.pi * (110.0 - 72.0 * t / 0.24) * t).astype(np.float32)
-    click = np.random.default_rng(3).normal(0, 1, n).astype(np.float32) * _decay(n, 260) * 0.3
-    mix.add(at, (body * _decay(n, 16.0)) + click, gain)
+    body = np.sin(2 * np.pi * (120.0 - 78.0 * t / 0.19) * t).astype(np.float32)
+    click = np.random.default_rng(3).normal(0, 1, n).astype(np.float32) * _decay(n, 300) * 0.32
+    mix.add(at, (body * _decay(n, 20.0)) + click, gain)
 
 
-def snare(mix: Mix, at: float, gain: float = 0.4, gated: bool = True) -> None:
-    """Gated snare: the Tron signature. Noise, short body, delayed tail."""
-    n = int(0.34 * RATE)
+def clap(mix: Mix, at: float, gain: float = 0.3) -> None:
+    n = int(0.13 * RATE)
     noise = np.random.default_rng(int(at * 1300) + 5).normal(0, 1, n).astype(np.float32)
     noise = np.diff(noise, prepend=0.0)
-    body = noise * _decay(n, 40.0)
-    if not gated:
-        mix.add(at, body, gain, pan=0.05)
-        return
-    tail = np.zeros(n, dtype=np.float32)
-    offset = int(0.045 * RATE)
-    tail[offset:] = noise[: n - offset] * _decay(n - offset, 9.0) * 0.55
-    mix.add(at, body + tail, gain, pan=0.05)
+    mix.add(at, noise * _decay(n, 45.0), gain, pan=0.05)
 
 
-def hat(mix: Mix, at: float, gain: float = 0.1, open_hat: bool = False) -> None:
-    n = int((0.18 if open_hat else 0.045) * RATE)
+def open_hat(mix: Mix, at: float, gain: float = 0.14) -> None:
+    """The offbeat 'tss' that carries the groove."""
+    n = int(0.14 * RATE)
     noise = np.random.default_rng(int(at * 9100) + 11).normal(0, 1, n).astype(np.float32)
     noise = np.diff(noise, prepend=0.0) * np.diff(noise, prepend=0.0)
-    mix.add(at, noise * _decay(n, 110.0 if not open_hat else 22.0), gain, pan=0.28)
+    mix.add(at, noise * _decay(n, 26.0), gain, pan=0.3)
 
 
-def tom(mix: Mix, at: float, note: float, gain: float = 0.3) -> None:
-    n = int(0.26 * RATE)
-    t = _t(n)
-    body = np.sin(2 * np.pi * (note - note * 0.35 * t / 0.26) * t).astype(np.float32)
-    mix.add(at, body * _decay(n, 13.0), gain, pan=-0.2)
+def shaker(mix: Mix, at: float, gain: float = 0.05) -> None:
+    n = int(0.04 * RATE)
+    noise = np.random.default_rng(int(at * 5000) + 17).normal(0, 1, n).astype(np.float32)
+    noise = np.diff(noise, prepend=0.0)
+    mix.add(at, noise * _decay(n, 90.0), gain, pan=-0.3)
 
 
-def bass_pulse(mix: Mix, at: float, note: int, gain: float = 0.34, length: float = 0.19) -> None:
-    n = int(length * RATE)
-    tone = saw_stack(midi(note), n, harmonics=5, bright=0.35, detune=0.002)
-    mix.add(at, tone * _env(n, 0.004, 0.1) * _decay(n, 4.0), gain)
-
-
-def arp(mix: Mix, at: float, note: int, gain: float = 0.12, pan: float = 0.0, ring: float = 0.14) -> None:
-    n = int(ring * RATE)
-    tone = sweep_stack(midi(note), n, dark=0.3, light=0.62, rise=False)
-    mix.add(at, tone * _decay(n, 22.0), gain, pan=pan)
-
-
-def pad(mix: Mix, at: float, notes: list[int], gain: float = 0.1, length: float = 2.2) -> None:
-    n = int(length * RATE)
-    voice = np.zeros(n, dtype=np.float32)
-    for index, note in enumerate(notes):
-        voice += saw_stack(midi(note), n, harmonics=5, bright=0.3, detune=0.004) * (0.6 - index * 0.1)
-    mix.add(at, voice * _env(n, 0.5, 0.8), gain, pan=-0.05)
-
-
-def lead(mix: Mix, at: float, note: int, length: float, gain: float = 0.14) -> None:
-    n = int(length * RATE)
-    t = _t(n)
-    phase = 2 * np.pi * midi(note) * t + 0.35 * np.sin(2 * np.pi * 5.2 * t)
-    tone = (np.sin(phase) + 0.4 * np.sin(2 * phase) + 0.2 * np.sin(3 * phase)).astype(np.float32)
-    mix.add(at, tone * _env(n, 0.03, 0.25) * _decay(n, 2.2), gain, pan=0.08)
-
-
-def swell(mix: Mix, at: float, note: int, gain: float = 0.18, length: float = 2.2) -> None:
-    """Orchestral-ish riser: stacked fifths and noise, opening up."""
-    n = int(length * RATE)
-    voice = np.zeros(n, dtype=np.float32)
-    for interval, weight in ((0, 1.0), (7, 0.6), (12, 0.35)):
-        voice += sweep_stack(midi(note + interval), n, dark=0.15, light=0.6, rise=True) * weight
-    noise = np.random.default_rng(21).normal(0, 1, n).astype(np.float32) * 0.18
-    ramp = np.linspace(0.0, 1.0, n, dtype=np.float32) ** 1.6
-    mix.add(at, (voice + noise) * ramp * _env(n, 0.2, 0.05), gain)
-
-
-def impact(mix: Mix, at: float, gain: float = 0.45) -> None:
+def crash(mix: Mix, at: float, gain: float = 0.2) -> None:
     n = int(1.1 * RATE)
+    noise = np.random.default_rng(23).normal(0, 1, n).astype(np.float32)
+    noise = np.diff(noise, prepend=0.0)
+    mix.add(at, noise * _decay(n, 5.5), gain, pan=-0.1)
+
+
+def roll_bass(mix: Mix, at: float, note: int, gain: float = 0.26) -> None:
+    n = int(0.095 * RATE)
+    tone = supersaw(midi(note), n, voices=3, detune=0.004, harmonics=4, bright=0.3)
+    mix.add(at, tone * _env(n, 0.003, 0.06) * _decay(n, 6.0), gain)
+
+
+def bass_pluck(mix: Mix, at: float, note: int, gain: float = 0.12) -> None:
+    n = int(0.16 * RATE)
+    tone = supersaw(midi(note), n, voices=2, detune=0.003, harmonics=5, bright=0.4)
+    mix.add(at, tone * _decay(n, 22.0), gain, pan=0.0)
+
+
+def chord_stab(mix: Mix, at: float, notes: list[int], gain: float = 0.16, length: float = 0.22) -> None:
+    n = int(length * RATE)
+    voice = np.zeros(n, dtype=np.float32)
+    for note in notes:
+        voice += supersaw(midi(note), n, voices=5, detune=0.011, harmonics=5, bright=0.4)
+    mix.add(at, voice * _env(n, 0.005, 0.12), gain, pan=-0.05)
+
+
+def pad(mix: Mix, at: float, notes: list[int], gain: float = 0.09, length: float = 1.8) -> None:
+    n = int(length * RATE)
+    voice = np.zeros(n, dtype=np.float32)
+    for note in notes:
+        voice += supersaw(midi(note), n, voices=7, detune=0.016, harmonics=5, bright=0.32)
+    mix.add(at, voice * _env(n, 0.45, 0.7), gain, pan=0.0)
+
+
+def lead(mix: Mix, at: float, note: int, length: float, gain: float = 0.13) -> None:
+    n = int(length * RATE)
     t = _t(n)
-    body = np.sin(2 * np.pi * (78.0 - 42.0 * t) * t).astype(np.float32) * _decay(n, 3.4)
+    phase = 2 * np.pi * midi(note) * t + 0.28 * np.sin(2 * np.pi * 5.6 * t)
+    tone = (np.sin(phase) + 0.45 * np.sin(2 * phase) + 0.22 * np.sin(3 * phase)).astype(np.float32)
+    shimmer = supersaw(midi(note), n, voices=3, detune=0.008, harmonics=3, bright=0.4) * 0.5
+    mix.add(at, (tone + shimmer) * _env(n, 0.03, 0.2) * _decay(n, 1.6), gain=gain, pan=0.1)
+
+
+def riser(mix: Mix, at: float, gain: float = 0.2, length: float = 2.0) -> None:
+    n = int(length * RATE)
+    noise = np.random.default_rng(29).normal(0, 1, n).astype(np.float32)
+    noise = np.diff(noise, prepend=0.0)
+    ramp = (np.linspace(0.0, 1.0, n, dtype=np.float32) ** 2.2)
+    mix.add(at, noise * ramp, gain)
+
+
+def impact(mix: Mix, at: float, gain: float = 0.42) -> None:
+    n = int(1.0 * RATE)
+    t = _t(n)
+    body = np.sin(2 * np.pi * (85.0 - 45.0 * t) * t).astype(np.float32) * _decay(n, 3.6)
     air = np.random.default_rng(5).normal(0, 1, n).astype(np.float32) * np.exp(-16.0 * t)
     mix.add(at, body + air * 0.4, gain)
 
 
-# ------------------------------------------------------------------- effects
-
-
-def delay(signal: np.ndarray, seconds: float, feedback: float = 0.32, taps: int = 3) -> np.ndarray:
-    out = signal.copy()
-    d = int(seconds * RATE)
-    if d <= 0:
-        return out
-    for tap in range(1, taps + 1):
-        gain = feedback ** tap
-        shifted = int(tap * d)
-        out[shifted:] += signal[:-shifted] * gain
-    return out
+# ---------------------------------------------------------------------- score
 
 
 def sidechain(n: int, kicks: list[float], depth: float = 0.55) -> np.ndarray:
     env = np.ones(n, dtype=np.float32)
-    length = int(0.22 * RATE)
-    curve = (1.0 - depth * np.exp(-np.arange(length) / (0.055 * RATE))).astype(np.float32)
+    length = int(0.2 * RATE)
+    curve = (1.0 - depth * np.exp(-np.arange(length) / (0.05 * RATE))).astype(np.float32)
     for at in kicks:
         i = int(at * RATE)
         if i >= n:
@@ -220,11 +216,7 @@ def sidechain(n: int, kicks: list[float], depth: float = 0.55) -> np.ndarray:
     return env
 
 
-# ---------------------------------------------------------------------- score
-
-
 def render(duration: float, plan: list[tuple[float, float, float, str]]) -> np.ndarray:
-    """plan: [(start, end, level, style)] covering the timeline in order."""
     mix = Mix(duration)
     n = mix.n
 
@@ -232,99 +224,92 @@ def render(duration: float, plan: list[tuple[float, float, float, str]]) -> np.n
         for start, end, level, style in plan:
             if start <= moment < end:
                 return level, style
-        return (plan[-1][2], plan[-1][3]) if plan else (0.7, "main")
+        return (plan[-1][2], plan[-1][3]) if plan else (0.8, "main")
 
-    # Drums and pump are placed on a beat grid first, so the sidechain knows
-    # exactly where the kicks are.
-    kicks: list[float] = []
-    bar = 0
-    t = 0.0
-    while t < duration - 0.05:
-        level, style = context(t)
-        if style in ("build", "main", "lift"):
-            for beat in range(4):
-                kicks.append(t + beat * BEAT)
-        elif style == "break":
-            kicks.extend([t, t + 2 * BEAT])
-        elif style == "outro" and bar % 2 == 0:
-            kicks.append(t)
-
-        if style == "build":
-            kick(mix, t, 0.5)
-            kick(mix, t + BEAT, 0.5)
-            snare(mix, t + 2 * BEAT, 0.2, gated=False)
-        elif style in ("main", "lift"):
-            for beat in range(4):
-                kick(mix, t + beat * BEAT, 0.85)
-            snare(mix, t + BEAT, 0.34)
-            snare(mix, t + 3 * BEAT, 0.36)
-            steps = 16 if style == "lift" else 8
-            for step in range(steps):
-                hat(mix, t + step * BEAT / (steps / 4), 0.055 + (0.02 if step % 2 else 0.0),
-                    open_hat=(step == steps - 2))
-            if bar % 8 == 7:
-                for index in range(4):
-                    tom(mix, t + 3 * BEAT + index * BEAT / 4, 190 - index * 18, 0.2)
-        elif style == "break":
-            kick(mix, t, 0.7)
-            kick(mix, t + 2 * BEAT, 0.7)
-            snare(mix, t + BEAT, 0.3)
-            snare(mix, t + 3 * BEAT, 0.3)
-
-        bar += 1
-        t += BAR
-
-    # Pads and bass, then the pump over the top of them.
+    pad_bus = Mix(duration)
     chord_bus = Mix(duration)
     bass_bus = Mix(duration)
-    arp_bus = Mix(duration)
     lead_bus = Mix(duration)
+    kicks: list[float] = []
 
     bar = 0
     t = 0.0
-    while t < duration - 0.05:
+    while t < duration - 0.02:
         chord, root = CHORDS[bar % len(CHORDS)]
         level, style = context(t)
 
-        pad(chord_bus, t, chord, gain=0.10 + 0.07 * level, length=BAR + 0.3)
-
-        if style != "intro":
-            for step in range(8):
-                note = root + (12 if step % 4 == 3 else 0)
-                bass_pulse(bass_bus, t + step * BEAT / 2, note,
-                           gain=(0.26 + 0.12 * level) * (1.0 if step % 2 == 0 else 0.7))
+        # --- drums
+        if style == "break":
+            kick(mix, t, 0.7)
+            kicks.append(t)
+        elif style == "intro":
+            if bar % 2 == 0:
+                for at in (t, t + 2 * BEAT):
+                    kick(mix, at, 0.8)
+                    kicks.append(at)
+        else:
+            for beat in range(4):
+                kick(mix, t + beat * BEAT, 0.85)
+                kicks.append(t + beat * BEAT)
 
         if style in ("build", "main", "lift"):
-            steps = 16
-            for step in range(steps):
-                index = step % len(chord)
-                note = chord[index] + (12 if step % 8 >= 4 else 0) + (12 if style == "lift" else 0)
-                arp(arp_bus, t + step * BEAT / 4, note,
-                    gain=0.075 + 0.045 * level, pan=(-0.4, 0.4)[step % 2],
-                    ring=0.12 if style != "lift" else 0.1)
+            for beat in (1, 3):
+                clap(mix, t + beat * BEAT, 0.3)
+            for step in range(4):
+                open_hat(mix, t + step * BEAT + BEAT / 2, 0.13 + 0.03 * level)
+            if style == "lift":
+                for step in range(16):
+                    shaker(mix, t + step * SIXTEENTH, 0.032)
+            if bar % 8 == 0:
+                crash(mix, t, 0.18)
 
+        if style == "break":
+            # Drums drop to a heartbeat kick; the pad and lead carry it.
+            kick(mix, t, 0.7)
+            kicks.append(t)
+            if bar % 4 == 3:
+                riser(mix, t + 2 * BEAT, 0.16, length=2 * BEAT)
+
+        # --- rolling bass
+        if style in ("build", "main", "lift", "outro"):
+            for step in range(16):
+                note = root + ROLL[step]
+                roll_bass(bass_bus, t + step * SIXTEENTH, note,
+                          gain=(0.20 + 0.10 * level) * (1.0 if step % 4 == 0 else 0.85))
+            for step in range(4):
+                bass_pluck(bass_bus, t + step * BEAT + BEAT / 2, root + 24,
+                           gain=0.05 + 0.03 * level)
+
+        # --- chords and pads
+        if style in ("build", "main", "lift"):
+            for step in (0, 2):
+                chord_stab(chord_bus, t + step * BEAT, chord, gain=0.10 + 0.06 * level)
+        pad(pad_bus, t, chord, gain=0.07 + 0.04 * level, length=BAR + 0.2)
+
+        # --- lead, only after the breakdown lifts
         if style == "lift":
-            for beat_offset, note, length in MOTIF:
-                if beat_offset < 4:
-                    lead(lead_bus, t + beat_offset * BEAT, note, length * BEAT, gain=0.11)
-
-        if style == "intro" and bar % 2 == 0:
-            arp(arp_bus, t, chord[0] + 12, gain=0.05, ring=1.6)
+            for offset, beat_at, note, beats in LEAD:
+                if int(offset) == bar % 4:
+                    lead(lead_bus, t + beat_at * BEAT, note, beats * BEAT, gain=0.12)
 
         if style == "outro" and bar == 0:
-            swell(mix, t, root + 12, gain=0.2, length=2.0)
+            crash(mix, t, 0.22)
 
         bar += 1
         t += BAR
 
     pump = sidechain(n, kicks, depth=0.6)
-    arp_bus.buf *= pump[:, None]
+    pad_bus.buf *= pump[:, None]
     chord_bus.buf *= sidechain(n, kicks, depth=0.45)[:, None]
 
-    lead_bus.buf = delay(lead_bus.buf, BEAT * 0.75, feedback=0.3, taps=3)
-    arp_bus.buf = delay(arp_bus.buf, BEAT * 0.5, feedback=0.22, taps=2)
+    # A dotted-eighth delay on the lead is half the genre.
+    delay_len = int(BEAT * 0.75 * RATE)
+    delayed = lead_bus.buf.copy()
+    for tap, gain in ((1, 0.30), (2, 0.16), (3, 0.08)):
+        shifted = tap * delay_len
+        delayed[shifted:] += lead_bus.buf[:-shifted] * gain
 
-    for bus, gain in ((chord_bus, 1.0), (bass_bus, 1.0), (arp_bus, 0.9), (lead_bus, 1.0)):
-        mix.buf += bus.buf * gain
+    for bus, gain in ((pad_bus.buf, 1.0), (chord_bus.buf, 1.0), (bass_bus.buf, 1.0), (delayed, 1.0)):
+        mix.buf += bus * gain
 
     return mix.buf
