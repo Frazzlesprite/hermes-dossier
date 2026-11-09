@@ -215,7 +215,7 @@ python scripts/make_video.py
 
 ## Demo
 
-`docs/dossier-demo.mp4`: 72 seconds, built from a real run of `scripts/demo_contradiction.py`, so every figure on screen comes from the pipeline. A saved source set, no network, no model.
+`docs/dossier-demo.mp4`: 66 seconds. Hook, a real terminal, and the same Valve evidence read twice, once for an interview and once for a sales call. Every figure and question comes from a replay of the captured sources, and the brief frames are screenshots of the HTML and PDF that run produced.
 
 Three things that will save you an afternoon:
 

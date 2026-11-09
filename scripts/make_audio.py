@@ -154,8 +154,8 @@ def impact(mix: Mix, start: float, gain: float) -> None:
     mix.add(start, (body + air * 0.3) * decay, gain)
 
 
-def build(duration: float, scenes: list[tuple[str, float]], out: Path | None = None) -> Path:
-    """scenes: (name, duration) in order. Cues are derived from their starts."""
+def build(duration: float, scenes: list[tuple[str, float]], out: Path | None = None, cues: dict | None = None) -> Path:
+    """scenes: (name, duration) in order. cues can override ticks, impacts and typing."""
     mix = Mix(duration)
     starts: list[float] = []
     cursor = 0.0
@@ -193,22 +193,22 @@ def build(duration: float, scenes: list[tuple[str, float]], out: Path | None = N
         time += beat
         step += 1
 
-    # Scene changes: a whoosh, and a soft impact on the two big reveals.
+    cues = cues or {}
+
+    # Scene changes: a whoosh, and a soft impact on the big reveals.
     for start in starts[1:]:
         whoosh(mix, start - 0.16, 0.16)
-    for moment in (starts[3], starts[5], starts[6]):
-        impact(mix, moment, 0.20)
+    for moment in cues.get("impacts", (starts[3], starts[5], starts[6])):
+        impact(mix, float(moment), 0.22)
 
-    for moment in (starts[1] + 0.35, starts[3] + 0.9):
+    for start in cues.get("typing", (starts[1] + 0.35,)):
         for i in range(10):
-            tick(mix, moment + i * 0.08, 0.05, 900 + 70 * i)
+            tick(mix, float(start) + i * 0.08, 0.05, 900 + 70 * i)
 
-    for moment in (13.0, 14.2, 15.4, 16.6):
-        tick(mix, moment, 0.10, 1760.0)
-    for i in range(3):
-        tick(mix, starts[4] + 0.4 + i * 1.1, 0.09, 1320.0)
-    for i in range(4):
-        tick(mix, starts[3] + 1.0 + i * 1.6, 0.06, 1180.0)
+    for moment in cues.get("ticks", (starts[3] + 1.0,)):
+        tick(mix, float(moment), 0.10, 1760.0)
+    for moment in cues.get("soft", ()):
+        tick(mix, float(moment), 0.06, 1180.0)
 
     # Quiet tail.
     fade_n = int(1.4 * RATE)
