@@ -49,10 +49,10 @@ def build(
         starts.append(cursor)
         cursor += span
 
-    intensity = cues.get("intensity") or [
-        (start, start + span, 0.8) for start, (_name, span) in zip(starts, scenes)
+    plan = cues.get("plan") or [
+        (start, start + span, 0.8, "groove") for start, (_name, span) in zip(starts, scenes)
     ]
-    music = make_music.render(duration, intensity)
+    music = make_music.render(duration, plan)
 
     events = make_music.Mix(duration)
     for start in starts[1:]:
