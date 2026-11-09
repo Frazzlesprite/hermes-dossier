@@ -11,6 +11,7 @@ from __future__ import annotations
 import html
 import re
 
+from . import contexts
 from .models import Brief, Section
 
 POLICY_FOOTER = (
@@ -26,6 +27,8 @@ body { margin:0; color:var(--ink); background:#f4f5f7;
   font: 10.5pt/1.45 "Iowan Old Style", "Palatino Linotype", Palatino, Georgia, serif; }
 .page { width:210mm; min-height:297mm; margin:0 auto; background:#fff; padding:16mm 15mm; }
 .brief + .brief { break-before: page; page-break-before: always; }
+.purpose { margin: 0 0 5mm; padding: 2.5mm 3mm; border-left: 2px solid var(--accent);
+  background: #f2f5fb; font-size: 9.5pt; }
 h1 { font-size:19pt; line-height:1.15; margin:0 0 2mm; letter-spacing:-0.01em; }
 .meta { color:var(--muted); font-size:8.5pt; font-family: ui-sans-serif, system-ui, sans-serif;
   text-transform:uppercase; letter-spacing:0.08em; margin-bottom:6mm; }
@@ -73,6 +76,14 @@ def render_html(brief: Brief, *, title: str = "Dossier") -> str:
     name = html.escape(str(entity.get("canonical_name") or "Dossier"))
     kind = html.escape(str(entity.get("kind") or "org"))
     generated = html.escape(brief.generated_at)
+    context_note = ""
+    if brief.context and brief.context != "general":
+        context_note = f" · prepared for a {html.escape(contexts.label(brief.context).lower())}"
+    purpose_block = (
+        f'<div class="purpose"><strong>Purpose:</strong> {html.escape(brief.purpose)}</div>'
+        if brief.purpose
+        else ""
+    )
 
     body = "\n".join(_section(s) for s in brief.sections if s.id != "sources")
     sources = "".join(
@@ -93,7 +104,8 @@ def render_html(brief: Brief, *, title: str = "Dossier") -> str:
 <style>{_CSS}</style></head>
 <body><div class="page brief">
 <h1>{name}</h1>
-<div class="meta">{kind} · brief generated {generated} · {len(brief.sources)} source(s)</div>
+<div class="meta">{kind} · brief generated {generated} · {len(brief.sources)} source(s){context_note}</div>
+{purpose_block}
 {body}
 <footer>{POLICY_FOOTER}</footer>
 </div>

@@ -19,13 +19,25 @@ Do **not** use it on a private individual with no professional context, or to lo
 
 | Call | Use |
 |---|---|
-| `dossier_build` | First look. Pass `domain=` whenever you know it, it pins the entity and prevents a name collision. |
+| `dossier_build` | First look. Pass `domain=` whenever you know it, it pins the entity. Pass `purpose=` and `context=` so the brief is framed for the meeting. |
 | `dossier_show` | Read what is already stored, without touching the network. |
 | `dossier_diff` | What changed between the last two snapshots. This is the pre-meeting question. |
 | `dossier_refresh` | Re-fetch and snapshot, then report the diff. |
 | `dossier_forget` | Delete everything about the entity. Requires `confirm=true`. |
 
 Slash equivalents: `/dossier <name>`, `/dossier show|diff|refresh|forget <name>`.
+
+## Frame it for the meeting
+
+Ask, or infer from what the user said, what they are preparing for, and pass it:
+
+- `context="interview"` for a job interview: team, role, how success is measured.
+- `context="sales"` for a sales call: current spend, sign-off, urgency.
+- `context="partnership"` for a partnership talk: the gap they cannot fill, the approver, the pilot.
+- `context="diligence"` for due diligence: disagreeing sources, concentration, what stopped being said.
+- `context="supplier"` for a supplier review: delivery exposure, who runs it, what changed.
+
+Also pass `purpose=` in the user's own words ("interview for the platform role on Thursday"). It is printed on the brief, so it is worth getting right. If you pass only a purpose, the context is inferred from the words. A person dossier requires a purpose and defaults to `interview`.
 
 ## Rules that matter
 

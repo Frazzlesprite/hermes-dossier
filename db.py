@@ -25,7 +25,8 @@ CREATE TABLE IF NOT EXISTS entities (
   registry_id TEXT,                     -- ABN, company number, CIK
   country TEXT,
   disambiguator TEXT,                   -- employer, role, location
-  purpose TEXT,                         -- why this dossier exists (section 12)
+  purpose TEXT,
+  context TEXT,                   -- interview | sales | partnership | diligence | supplier | general                         -- why this dossier exists (section 12)
   retention_days INTEGER,
   github TEXT,                          -- org slug, for the GitHub adapter
   created_at TEXT NOT NULL,
@@ -107,6 +108,8 @@ def _migrate(conn: sqlite3.Connection) -> None:
         conn.execute("ALTER TABLE entities ADD COLUMN country TEXT")
     if "purpose" not in entity_columns:
         conn.execute("ALTER TABLE entities ADD COLUMN purpose TEXT")
+    if "context" not in entity_columns:
+        conn.execute("ALTER TABLE entities ADD COLUMN context TEXT")
 
 
 def rows(cursor: Iterable[sqlite3.Row]) -> list[dict[str, Any]]:

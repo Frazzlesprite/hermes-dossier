@@ -22,7 +22,23 @@ NAME = {
             "domain": {"type": "string", "description": "The organisation's own domain, when known. Pins the entity and stops name collisions."},
             "github": {"type": "string", "description": "GitHub organisation slug, when known."},
             "disambiguator": {"type": "string", "description": "Employer, role or location that tells two same-name entities apart."},
-            "purpose": {"type": "string", "description": "Why this dossier exists, e.g. 'supplier review for Q1'. Stored with the entity."},
+            "purpose": {
+                "type": "string",
+                "description": (
+                    "Why this dossier exists, in the user's words: 'interview for the platform role "
+                    "on Thursday', 'first call with their procurement team'. It is stored and printed "
+                    "on the brief, and it steers the questions."
+                ),
+            },
+            "context": {
+                "type": "string",
+                "enum": ["general", "interview", "sales", "partnership", "diligence", "supplier"],
+                "description": (
+                    "What the reader is preparing for. Changes the questions and the risk heading: "
+                    "an interview gets team and role questions, a sales meeting gets spend, sign-off "
+                    "and urgency questions. Infer it from what the user says they are doing."
+                ),
+            },
         },
         "required": ["name"],
     },

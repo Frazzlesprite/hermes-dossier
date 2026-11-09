@@ -160,6 +160,7 @@ def build(args: dict, *, ctx=None, **kwargs) -> str:
                 github=args.get("github"),
                 kind=kind,
                 purpose=args.get("purpose"),
+                context=args.get("context"),
                 abn_guid=_secret(ctx, "abn_lookup_guid", "ABN_LOOKUP_GUID"),
                 companies_house_key=_secret(ctx, "companies_house_api_key", "COMPANIES_HOUSE_API_KEY"),
             )
@@ -272,6 +273,7 @@ def refresh(args: dict, *, ctx=None, **kwargs) -> str:
                 disambiguator=entity.get("disambiguator"),
                 kind=entity.get("kind"),
                 purpose=entity.get("purpose"),
+                context=entity.get("context"),
                 abn_guid=_secret(ctx, "abn_lookup_guid", "ABN_LOOKUP_GUID"),
                 companies_house_key=_secret(ctx, "companies_house_api_key", "COMPANIES_HOUSE_API_KEY"),
             )

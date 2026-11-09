@@ -13,7 +13,7 @@ import time
 from pathlib import Path
 from typing import Any, Optional
 
-from . import schemas, tools
+from . import contexts, schemas, tools
 
 logger = logging.getLogger(__name__)
 
@@ -82,7 +82,7 @@ def recall_dossier(session_id: str = "", user_message: str = "", **kwargs: Any) 
 
 def _parse(raw_args: str) -> tuple[str, str]:
     parts = (raw_args or "").strip().split(None, 1)
-    verbs = {"build", "show", "diff", "refresh", "forget", "watch"}
+    verbs = {"build", "show", "diff", "refresh", "forget", "watch", "prep"}
     if parts and parts[0].lower() in verbs:
         return parts[0].lower(), (parts[1] if len(parts) > 1 else "")
     return "build", (raw_args or "").strip()
@@ -90,8 +90,10 @@ def _parse(raw_args: str) -> tuple[str, str]:
 
 USAGE = (
     "Usage: /dossier <name>\n"
+    "       /dossier prep <name> [interview|sales|partnership|diligence|supplier]\n"
     "       /dossier show|diff|refresh|forget <name>\n"
     "       /dossier watch <name> [off|manual|daily|weekly]\n"
+    "`prep` frames the questions for the meeting you are actually going to.\n"
     "`forget` requires confirm=true on the tool, or the delete button in the Desktop."
 )
 
@@ -147,7 +149,18 @@ def register(ctx) -> None:
         verb, rest = _parse(raw_args)
         if not rest:
             return USAGE
-        if verb == "watch":
+        if verb == "prep":
+            pieces = rest.rsplit(None, 1)
+            if len(pieces) == 2 and pieces[1].lower() in contexts.CONTEXTS:
+                name, context_id = pieces[0], pieces[1].lower()
+            else:
+                name, context_id = rest, ""
+            payload = {
+                "name": name,
+                "purpose": rest,
+                "context": context_id or None,
+            }
+        elif verb == "watch":
             pieces = rest.rsplit(None, 1)
             if len(pieces) == 2 and pieces[1].lower() in db_cadences():
                 rest, cadence = pieces[0], pieces[1].lower()
@@ -162,7 +175,18 @@ def register(ctx) -> None:
         result = json.loads(handler(payload, ctx=ctx, **kwargs) or "{}")
         if result.get("error"):
             return f"Dossier: {result['error']}"
-        if verb == "watch":
+        if verb == "prep":
+            pieces = rest.rsplit(None, 1)
+            if len(pieces) == 2 and pieces[1].lower() in contexts.CONTEXTS:
+                name, context_id = pieces[0], pieces[1].lower()
+            else:
+                name, context_id = rest, ""
+            payload = {
+                "name": name,
+                "purpose": rest,
+                "context": context_id or None,
+            }
+        elif verb == "watch":
             watch_state = result.get("watch") or {}
             return f"{result['entity']}: cadence {watch_state.get('cadence', cadence)}."
         if verb == "diff":

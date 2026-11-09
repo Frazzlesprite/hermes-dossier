@@ -11,6 +11,7 @@ from __future__ import annotations
 
 import importlib.util
 import json
+import os
 import sys
 import tempfile
 from pathlib import Path
@@ -90,12 +91,18 @@ def main() -> int:
                     break
         return (results if results is not None else fallback)[:limit]
 
+    purpose = os.environ.get("DOSSIER_PURPOSE", "demo")
+    context = os.environ.get("DOSSIER_CONTEXT") or None
     workdir = Path(tempfile.mkdtemp(prefix="dossier-valve-"))
     conn = db.connect(workdir / "valve.db")
     config = Config(registry_contact="demo@example.invalid")
     try:
-        first = pipeline.build(index["name"], conn=conn, search_fn=search_fn, domain=index["domain"], config=config, purpose="demo")
-        second = pipeline.build(index["name"], conn=conn, search_fn=search_fn, domain=index["domain"], config=config, purpose="demo")
+        first = pipeline.build(
+            index["name"], conn=conn, search_fn=search_fn, domain=index["domain"],
+            config=config, purpose=purpose, context=context)
+        second = pipeline.build(
+            index["name"], conn=conn, search_fn=search_fn, domain=index["domain"],
+            config=config, purpose=purpose, context=context)
     finally:
         conn.close()
 

@@ -14,6 +14,7 @@ import sqlite3
 from dataclasses import dataclass
 from typing import Any, Callable, Optional
 
+from . import contexts
 from . import plan
 from . import resolve as resolve_mod
 from . import store
@@ -66,7 +67,14 @@ class Config:
         return Policy(user_agent=self.user_agent)
 
 
-def upsert_entity(conn: sqlite3.Connection, candidate: dict[str, Any], *, purpose: Optional[str], retention_days: int) -> int:
+def upsert_entity(
+    conn: sqlite3.Connection,
+    candidate: dict[str, Any],
+    *,
+    purpose: Optional[str],
+    retention_days: int,
+    context: Optional[str] = None,
+) -> int:
     existing = conn.execute(
         "SELECT id FROM entities WHERE lower(canonical_name) = lower(?) AND COALESCE(domain, '') = COALESCE(?, '')",
         (candidate["name"], candidate.get("domain"))).fetchone()
@@ -75,12 +83,14 @@ def upsert_entity(conn: sqlite3.Connection, candidate: dict[str, Any], *, purpos
         conn.execute(
             "UPDATE entities SET aliases = COALESCE(?, aliases), github = COALESCE(?, github), "
             "disambiguator = COALESCE(?, disambiguator), purpose = COALESCE(?, purpose), "
+            "context = COALESCE(?, context), "
             "retention_days = COALESCE(?, retention_days), updated_at = ? WHERE id = ?",
             (
                 json.dumps(candidate.get("aliases") or []) if candidate.get("aliases") else None,
                 candidate.get("github"),
                 candidate.get("disambiguator"),
                 purpose,
+                context,
                 retention_days,
                 stamp,
                 existing["id"]))
@@ -89,8 +99,8 @@ def upsert_entity(conn: sqlite3.Connection, candidate: dict[str, Any], *, purpos
 
     cursor = conn.execute(
         "INSERT INTO entities (kind, canonical_name, aliases, domain, registry_id, country, "
-        "disambiguator, purpose, retention_days, github, created_at, updated_at) "
-        "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+        "disambiguator, purpose, context, retention_days, github, created_at, updated_at) "
+        "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
         (
             candidate.get("kind") or "org",
             candidate["name"],
@@ -100,6 +110,7 @@ def upsert_entity(conn: sqlite3.Connection, candidate: dict[str, Any], *, purpos
             candidate.get("country"),
             candidate.get("disambiguator"),
             purpose,
+            context,
             retention_days,
             candidate.get("github"),
             stamp,
@@ -235,6 +246,7 @@ def build(
     github: Optional[str] = None,
     kind: Optional[str] = None,
     purpose: Optional[str] = None,
+    context: Optional[str] = None,
     memory_context: Optional[str] = None,
     abn_guid: str = "",
     companies_house_key: str = "",
@@ -286,7 +298,14 @@ def build(
         }
 
     candidate = resolution["candidate"]
-    entity_id = upsert_entity(conn, candidate, purpose=purpose, retention_days=config.retention_days)
+    context_id = contexts.normalise(context) or contexts.infer(purpose, candidate.get("kind") or "org")
+    entity_id = upsert_entity(
+        conn,
+        candidate,
+        purpose=purpose,
+        retention_days=config.retention_days,
+        context=context_id,
+    )
 
     # 2. Plan and fan out.
     queries = plan.search_queries(candidate["name"], kind=candidate.get("kind", "org"), domain=candidate.get("domain"))
@@ -360,7 +379,9 @@ def build(
         generated_at=stamp,
         freshness_days=config.freshness_days,
         memory_context=memory_context,
-        notes=notes)
+        notes=notes,
+        purpose=purpose,
+        context=context_id)
     html = render_html(brief)
     pdf = render_pdf(brief)
     persist_claims(conn, entity_id, verification.claims)
@@ -383,6 +404,9 @@ def build(
         "snapshot_id": snapshot_id,
         "entity": {"id": entity_id, "name": entity["canonical_name"], "kind": entity["kind"], "domain": entity.get("domain")},
         "headline": brief.headline,
+        "purpose": purpose or "",
+        "context": context_id,
+        "context_label": contexts.label(context_id),
         "questions": brief.questions,
         "claims": [c.as_dict() for c in verification.claims],
         "html": html,

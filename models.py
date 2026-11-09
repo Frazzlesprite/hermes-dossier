@@ -209,6 +209,8 @@ class Brief:
     sources: list[Evidence]
     generated_at: str
     notes: list[str] = field(default_factory=list)
+    purpose: str = ""
+    context: str = "general"
 
     @property
     def claim_count(self) -> int:

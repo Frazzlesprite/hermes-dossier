@@ -143,6 +143,46 @@ def test_a_distinctive_name_keeps_its_coverage(tmp_path, monkeypatch):
     assert any("news.example" in url for url in used), "two-token names should keep third-party coverage"
 
 
+def test_a_sales_context_is_stored_and_shapes_the_questions(tmp_path, monkeypatch):
+    web = fakeweb.install(monkeypatch, fakeweb.acme_web(1))
+    conn = db.connect(tmp_path / "ctx.db")
+    try:
+        result = pipeline.build(
+            "Acme Robotics",
+            conn=conn,
+            search_fn=web.search,
+            config=Config(),
+            purpose="first call with their procurement team",
+            context="sales",
+        )
+        stored = conn.execute("SELECT context, purpose FROM entities").fetchone()
+    finally:
+        conn.close()
+
+    assert result["status"] == "ok"
+    assert result["context"] == "sales"
+    assert stored["context"] == "sales"
+    assert stored["purpose"] == "first call with their procurement team"
+    joined = " ".join(result["questions"]).casefold()
+    assert "renew" in joined or "procurement" in joined
+
+
+def test_context_can_be_inferred_from_the_purpose_alone(tmp_path, monkeypatch):
+    web = fakeweb.install(monkeypatch, fakeweb.acme_web(1))
+    conn = db.connect(tmp_path / "ctx2.db")
+    try:
+        result = pipeline.build(
+            "Acme Robotics",
+            conn=conn,
+            search_fn=web.search,
+            config=Config(),
+            purpose="interview for the platform role on Thursday",
+        )
+    finally:
+        conn.close()
+    assert result["context"] == "interview"
+
+
 def test_forget_refuses_without_confirmation(tmp_path, monkeypatch):
     _run(tmp_path, monkeypatch, 1)
     import dossier.db as dbmod

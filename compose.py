@@ -14,6 +14,7 @@ from __future__ import annotations
 from typing import Iterable, Optional, Sequence
 
 from .models import Brief, Bullet, Claim, Evidence, Section
+from . import contexts
 from .verify import contested_groups
 
 FACT_ORDER = ("founded", "employees", "hq", "ceo", "role", "funding", "product")
@@ -248,6 +249,8 @@ def compose(
     freshness_days: int = 90,
     memory_context: Optional[str] = None,
     notes: Optional[Iterable[str]] = None,
+    purpose: Optional[str] = None,
+    context: str = "general",
 ) -> Brief:
     name = entity.get("canonical_name") or "This entity"
     index = source_index(claims)
@@ -265,11 +268,14 @@ def compose(
         )
     )
 
+    # The purpose is printed once, in the brief's header. This section is for
+    # what Hermes remembers about the entity, which is a different thing.
+    purpose_note = memory_context or ""
     sections.append(
         Section(
             id="why",
             title="Why they matter to you",
-            note=memory_context or "Nothing in your Hermes memory connects this entity to current work.",
+            note=purpose_note or "Nothing in your Hermes memory connects this entity to current work.",
         )
     )
 
@@ -298,15 +304,22 @@ def compose(
 
     risks = _risks(claims, index)
     sections.append(
-        Section(id="risks", title="Risks", bullets=tuple(risks), note=None if risks else "No risk-bearing claim was supported.")
+        Section(
+            id="risks",
+            title=contexts.risks_title(context),
+            bullets=tuple(risks),
+            note=None if risks else "No risk-bearing claim was supported.",
+        )
     )
 
     groups = contested_groups(claims)
+    gap_questions = _questions(name, claims, contested=groups, freshness_days=freshness_days)
+    questions = contexts.merge(context, name, gap_questions)
     sections.append(
         Section(
             id="questions",
             title="Three questions to ask",
-            note="\n".join(f"{i}. {q}" for i, q in enumerate(_questions(name, claims, contested=groups, freshness_days=freshness_days), start=1)),
+            note="\n".join(f"{i}. {q}" for i, q in enumerate(questions, start=1)),
         )
     )
 
@@ -324,8 +337,10 @@ def compose(
         entity=entity,
         headline=headline,
         sections=sections,
-        questions=_questions(name, claims, contested=groups, freshness_days=freshness_days),
+        questions=questions,
         sources=sources,
+        purpose=purpose or "",
+        context=context,
         generated_at=generated_at,
         notes=list(notes or []),
     )

@@ -58,11 +58,29 @@ The brief's footer repeats this in one line. The policy tests are in `tests/test
 | Surface | What you get |
 |---|---|
 | `/dossier <name>` | Build or refresh a dossier, return a card |
+| `/dossier prep <name> [interview\|sales\|partnership\|diligence\|supplier]` | Frame the brief for the meeting you actually have |
 | `/dossier show\|diff\|refresh\|forget\|watch <name>` | The other verbs |
 | `dossier_build` / `dossier_show` / `dossier_diff` / `dossier_refresh` / `dossier_forget` / `dossier_watch` | The same six, as tools |
 | Desktop → **Dossiers** | The list, the full brief, snapshot history, Refresh and Forget |
 | Full brief | A4 **PDF** and HTML, two pages plus a numbered source appendix |
 | Automation blueprint | A scheduled refresh users pick in `/blueprint`, no cron syntax |
+
+### Purpose and context
+
+A brief written for a job interview should not read like one written for a sales call. `dossier_build` takes a `purpose` (your words, printed on the brief) and a `context` that changes the questions and the risk heading:
+
+| Context | Risk heading | Questions are about |
+|---|---|---|
+| `interview` | What to be ready for | the team, the role, how success is measured |
+| `sales` | Objections to expect | current spend, sign-off, what makes it urgent |
+| `partnership` | Fit and friction | what they cannot build alone, who approves, the pilot |
+| `diligence` | What would hurt | disagreeing sources, concentration, what stopped being said |
+| `supplier` | Delivery risk | delivery exposure, who runs it, what changed |
+| `general` | Risks | the gaps in the evidence |
+
+If you pass only a purpose, the context is inferred from the words: "interview for the platform role" becomes `interview`, "first call with procurement" becomes `sales`. Both are stored on the entity, so a refresh keeps the framing, and the brief prints the purpose once in its header.
+
+A person dossier always requires a stated purpose, and defaults to the `interview` context, because that is what a dossier on a person is almost always for.
 
 A brief has: one line, why they matter to you (drawn from Hermes memory and labelled as memory), facts, recent items, contested or unconfirmed claims, risks, three questions to ask, and the sources.
 
