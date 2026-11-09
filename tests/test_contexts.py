@@ -91,6 +91,29 @@ def test_the_purpose_is_printed_on_the_brief():
     assert brief.context == "interview"
 
 
+def _evidence() -> Evidence:
+    return Evidence(
+        source_url="https://en.wikipedia.org/wiki/Acme",
+        source_type="search",
+        quote="Acme employed around 60 people in 2003 and 350 by 2021.",
+        retrieved_at="2026-11-09T00:00:00Z",
+    )
+
+
+def test_an_unconfirmed_value_becomes_a_caution_not_a_silence():
+    claims = verify(
+        [
+            ClaimDraft(predicate="employees", value="60", evidence=_evidence()),
+            ClaimDraft(predicate="employees", value="350", evidence=_evidence()),
+        ]
+    ).claims
+    brief = compose({"canonical_name": "Acme Robotics"}, claims, generated_at="2026-11-09T00:00:00Z")
+    risks = next(section for section in brief.sections if section.id == "risks")
+    assert risks.bullets, "an unconfirmed figure should warn the reader"
+    assert "do not quote" in risks.bullets[0].text.casefold()
+    assert risks.bullets[0].evidence
+
+
 def test_purpose_does_not_add_an_unsourced_bullet():
     brief = compose(
         {"canonical_name": "Acme Robotics"},

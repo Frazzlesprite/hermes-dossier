@@ -303,6 +303,22 @@ def compose(
     )
 
     risks = _risks(claims, index)
+    if not risks:
+        # Nothing is contested, but an unconfirmed figure is still a trap: one
+        # caution per predicate, listing the values the source actually gives.
+        grouped: dict[str, list[Claim]] = {}
+        for claim in claims:
+            if claim.status == "unconfirmed" and claim.evidence:
+                grouped.setdefault(claim.predicate, []).append(claim)
+        for predicate, group in list(grouped.items())[:2]:
+            values = ", ".join(claim.value for claim in group)
+            risks.append(
+                _bullet(
+                    f"Do not quote {predicate}: the source gives {values}, so pick a number you can "
+                    "defend or leave it out.",
+                    group[0].evidence[:1],
+                )
+            )
     sections.append(
         Section(
             id="risks",
