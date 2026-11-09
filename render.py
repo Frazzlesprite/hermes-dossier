@@ -52,15 +52,19 @@ def _inline(text: str) -> str:
     return re.sub(r"\*\*(.+?)\*\*", r"<strong>\1</strong>", escaped)
 
 
+def _note_html(text: str) -> str:
+    return "<br>".join(_inline(line) for line in str(text).splitlines())
+
+
 def _section(section: Section) -> str:
     parts = [f'<h2>{html.escape(section.title)}</h2>']
     if section.bullets:
         items = "".join(f"<li>{_inline(b.text)}</li>" for b in section.bullets)
         parts.append(f'<ul class="{section.id}">{items}</ul>')
     elif section.note:
-        parts.append(f'<p class="note">{_inline(section.note)}</p>')
+        parts.append(f'<p class="note">{_note_html(section.note)}</p>')
     if section.bullets and section.note:
-        parts.append(f'<p class="note">{_inline(section.note)}</p>')
+        parts.append(f'<p class="note">{_note_html(section.note)}</p>')
     return "\n".join(parts)
 
 
