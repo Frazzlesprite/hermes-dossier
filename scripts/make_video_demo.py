@@ -59,13 +59,13 @@ CUES = {
     # Music level per scene: quiet under the hook, full at the brief and the
     # split, dropped back for the diff, lifted for the close.
     "plan": [
-        (0.0, 5.0, 0.25, "intro"),
-        (5.0, 18.0, 0.70, "groove"),
-        (18.0, 31.0, 1.00, "full"),
-        (31.0, 43.0, 1.00, "full"),
+        (0.0, 5.0, 0.30, "intro"),
+        (5.0, 18.0, 0.70, "build"),
+        (18.0, 31.0, 1.00, "main"),
+        (31.0, 43.0, 1.00, "lift"),
         (43.0, 52.0, 0.55, "break"),
-        (52.0, 59.0, 0.80, "groove"),
-        (59.0, 66.0, 0.90, "full"),
+        (52.0, 59.0, 0.85, "main"),
+        (59.0, 66.0, 0.90, "outro"),
     ],
     "ticks": [9.7, 10.7, 11.7, 12.7],
     "voice": [
@@ -75,7 +75,7 @@ CUES = {
         ("This one is for the interview.", 19.2),
         ("Same evidence. A different meeting, so different questions.", 31.8),
         ("Refresh it the morning of, and it tells you what changed.", 44.2),
-        ("Dossier. A Hermes plug-in.", 59.6),
+        ("Dossier. A Hermes plug in.", 59.6),
     ],
 }
 
