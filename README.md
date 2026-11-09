@@ -185,7 +185,7 @@ Two deliberate design choices, both worth knowing before you change anything:
 
 ```bash
 python -m venv .venv
-.venv\Scripts\pip install pytest pyyaml fastapi numpy
+.venv\Scripts\pip install pytest pyyaml fastapi numpy edge-tts
 .venv\Scripts\python -m pytest tests
 hermes plugins doctor . --ci
 hermes plugins validate . --install-deps
@@ -215,7 +215,7 @@ python scripts/make_video.py
 
 ## Demo
 
-`docs/dossier-demo.mp4`: 66 seconds. Hook, a real terminal, and the same Valve evidence read twice, once for an interview and once for a sales call. Every figure and question comes from a replay of the captured sources, and the brief frames are screenshots of the HTML and PDF that run produced.
+`docs/dossier-demo.mp4`: 66 seconds. Hook, a real terminal, and the same Valve evidence read twice, once for an interview and once for a sales call. Score and voiceover are synthesised at build time, so there is nothing to license. Every figure and question comes from a replay of the captured sources, and the brief frames are screenshots of the HTML and PDF that run produced.
 
 Three things that will save you an afternoon:
 

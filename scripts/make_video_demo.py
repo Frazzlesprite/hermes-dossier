@@ -56,10 +56,27 @@ SCENES = [
 TOTAL = sum(d for _, d in SCENES)
 
 CUES = {
-    "impacts": [18.0, 31.0, 43.0],
+    # Music level per scene: quiet under the hook, full at the brief and the
+    # split, dropped back for the diff, lifted for the close.
+    "intensity": [
+        (0.0, 5.0, 0.25),
+        (5.0, 18.0, 0.70),
+        (18.0, 31.0, 1.00),
+        (31.0, 43.0, 1.00),
+        (43.0, 52.0, 0.55),
+        (52.0, 59.0, 0.80),
+        (59.0, 66.0, 0.90),
+    ],
     "ticks": [9.7, 10.7, 11.7, 12.7],
-    "soft": [19.2, 20.4, 21.6, 32.0, 33.2, 34.4, 35.6],
-    "typing": [5.4],
+    "voice": [
+        ("Forty five minutes before the meeting.", 0.5),
+        ("Type the company, and what you are walking into.", 5.4),
+        ("Every claim cites the page it came from.", 12.0),
+        ("This one is for the interview.", 19.2),
+        ("Same evidence. A different meeting, so different questions.", 31.8),
+        ("Refresh it the morning of, and it tells you what changed.", 44.2),
+        ("Dossier. A Hermes plugin.", 59.6),
+    ],
 }
 
 
