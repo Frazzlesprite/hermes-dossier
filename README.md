@@ -167,7 +167,7 @@ Two deliberate design choices, both worth knowing before you change anything:
 
 ```bash
 python -m venv .venv
-.venv\Scripts\pip install pytest pyyaml fastapi
+.venv\Scripts\pip install pytest pyyaml fastapi numpy
 .venv\Scripts\python -m pytest tests
 hermes plugins doctor . --ci
 hermes plugins validate . --install-deps
@@ -189,7 +189,7 @@ python scripts/demo_contradiction.py
 # the search and news adapters against the real Hermes web_search backend
 python scripts/search_check.py "Kalamari" kalamari.club
 
-# rebuild the 72-second demo video (Pillow + imageio-ffmpeg, dev only)
+# rebuild the demo videos (Pillow, numpy, imageio-ffmpeg; dev only)
 python scripts/make_video.py
 ```
 
