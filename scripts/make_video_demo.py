@@ -27,8 +27,8 @@ import make_video_valve as vis  # noqa: E402
 
 # Design space, then the real frame.
 DW, DH = 1280, 720
-S = 1.5
-W, H = int(DW * S), 1088  # 1088 = 68 x 16, so libx264 does not pad and shear the rows
+S = 2.0                     # draw at 2560x1440, then downscale to 1080p
+W, H = int(DW * S), int(DH * S)   # 2560x1440, both multiples of 16
 
 INK = vis.INK
 MUTED = vis.MUTED
@@ -494,8 +494,8 @@ def load() -> dict:
 def render(data: dict, target: Path) -> Path:
     writer = imageio_ffmpeg.write_frames(
         str(target), (W, H), fps=30, codec="libx264",
-        output_params=["-vf", "crop=1920:1080:0:0", "-crf", "16", "-preset", "medium",
-                        "-maxrate", "8M", "-bufsize", "16M", "-pix_fmt", "yuv420p"],
+        output_params=["-vf", "scale=1920:1080:flags=lanczos", "-crf", "14", "-preset", "slow",
+                        "-maxrate", "14M", "-bufsize", "28M", "-pix_fmt", "yuv420p"],
     )
     writer.send(None)
     elapsed = 0.0
@@ -539,7 +539,7 @@ def main() -> Path:
             # static frames lands around 1.8 Mbps, so the deliverable is
             # re-encoded to a target rate instead of stream-copied.
             "-c:v", "libx264", "-preset", "medium",
-            "-b:v", "5.5M", "-minrate", "5M", "-maxrate", "6M", "-bufsize", "6M",
+            "-b:v", "8M", "-maxrate", "10M", "-bufsize", "20M",
             "-pix_fmt", "yuv420p",
             "-c:a", "aac", "-b:a", "192k",
             "-shortest", "-movflags", "+faststart", str(OUT),
