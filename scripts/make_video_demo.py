@@ -132,8 +132,10 @@ def line(draw, x0, y0, x1, y1, **kwargs):
 
 def progress(image, elapsed: float, total: float) -> None:
     draw = ImageDraw.Draw(image)
-    draw.rectangle([0, H - 4, W, H], fill=(24, 27, 38))
-    draw.rectangle([0, H - 4, int(W * min(1.0, elapsed / total)), H], fill=ACCENT)
+    # Kept above H-8 so it survives the crop to 1920x1080 for X.
+    top = H - 34
+    draw.rectangle([0, top, W, top + 4], fill=(24, 27, 38))
+    draw.rectangle([0, top, int(W * min(1.0, elapsed / total)), top + 4], fill=ACCENT)
 
 
 def layer():
@@ -492,7 +494,8 @@ def load() -> dict:
 def render(data: dict, target: Path) -> Path:
     writer = imageio_ffmpeg.write_frames(
         str(target), (W, H), fps=30, codec="libx264",
-        output_params=["-crf", "17", "-preset", "medium", "-pix_fmt", "yuv420p"],
+        output_params=["-vf", "crop=1920:1080:0:0", "-crf", "16", "-preset", "medium",
+                        "-maxrate", "8M", "-bufsize", "16M", "-pix_fmt", "yuv420p"],
     )
     writer.send(None)
     elapsed = 0.0
@@ -532,7 +535,13 @@ def main() -> Path:
         [
             imageio_ffmpeg.get_ffmpeg_exe(), "-y", "-loglevel", "error",
             "-i", str(silent), "-i", str(audio),
-            "-c:v", "copy", "-c:a", "aac", "-b:a", "192k",
+            # X recommends at least 5 Mbps for a 1080p upload; a CRF pass on
+            # static frames lands around 1.8 Mbps, so the deliverable is
+            # re-encoded to a target rate instead of stream-copied.
+            "-c:v", "libx264", "-preset", "medium",
+            "-b:v", "5.5M", "-minrate", "5M", "-maxrate", "6M", "-bufsize", "6M",
+            "-pix_fmt", "yuv420p",
+            "-c:a", "aac", "-b:a", "192k",
             "-shortest", "-movflags", "+faststart", str(OUT),
         ],
         check=True,
