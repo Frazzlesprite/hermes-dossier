@@ -21,7 +21,7 @@ import make_music
 import make_vo
 
 RATE = 44100
-PEAK_CEILING = 0.85
+PEAK_CEILING = 0.74
 
 
 # --------------------------------------------------------------------- space
@@ -84,6 +84,25 @@ def ambience(n: int, level: float = 0.012) -> np.ndarray:
 def _set_rms(stem: np.ndarray, target_db: float) -> np.ndarray:
     """Normalise a stem to a measured RMS target, in dBFS."""
     rms = float(np.sqrt((stem ** 2).mean()))
+    if rms < 1e-9:
+        return stem
+    return (stem * (10.0 ** (target_db / 20.0) / rms)).astype(np.float32)
+
+
+
+def _set_active_rms(stem: np.ndarray, target_db: float, floor: float = 0.02) -> np.ndarray:
+    """Normalise on the part of the stem that actually has content.
+
+    Sparse stems (a handful of hits in 66 seconds) cannot be normalised over the
+    whole timeline: the silence pulls the average down and each hit is boosted
+    into a spike.
+    """
+    mono = np.abs(stem).max(axis=1)
+    if mono.max() <= 0:
+        return stem
+    mask = mono > mono.max() * floor
+    active = stem[mask]
+    rms = float(np.sqrt((active ** 2).mean())) if active.size else 0.0
     if rms < 1e-9:
         return stem
     return (stem * (10.0 ** (target_db / 20.0) / rms)).astype(np.float32)
@@ -183,28 +202,43 @@ def build(
     room = ambience(n)
 
     ir = impulse_response()
-    music = reverb(music, ir, 0.18)
-    effects = reverb(effects, ir, 0.12)
-    if voice is not None:
-        voice = reverb(voice, ir, 0.08)
+    music = reverb(music, ir, 0.07)
+    effects = reverb(effects, ir, 0.05)
+    # Voice stays dry: narration in a wet room reads as an effect, not a person.
 
-    # Hierarchy: the voice ducks everything under it.
-    if voice is not None:
-        envelope = _smooth(np.abs(voice).max(axis=1))
-        peak = float(envelope.max()) or 1.0
-        duck = envelope / peak
-        music *= (1.0 - 0.86 * duck)[:, None]
-        room *= (1.0 - 0.50 * duck)[:, None]
-        effects *= (1.0 - 0.25 * duck)[:, None]
-
-    # Targets from the brief: dialogue sits 5 dB over the bed, ambience is a
-    # floor rather than a layer you notice.
+    # Targets from the brief: dialogue sits over the bed, ambience is a floor
+    # rather than a layer you notice.
     stems = {
-        "voice": _set_rms(voice, -14.0) if voice is not None else np.zeros((n, 2), dtype=np.float32),
-        "effects": _set_rms(effects, -23.0),
+        "voice": _set_active_rms(voice, -12.0) if voice is not None else np.zeros((n, 2), dtype=np.float32),
+        "effects": _set_active_rms(effects, -20.0),
         "music": _set_rms(music, -19.0),
         "ambience": _set_rms(room, -36.0),
     }
+
+    # Hierarchy last: the voice ducks everything under it, and nothing may
+    # re-normalise the bed afterwards or the ducking is undone.
+    if voice is not None:
+        envelope = _smooth(np.abs(voice).max(axis=1), attack=0.01, release=0.18)
+        peak = float(envelope.max()) or 1.0
+        # Scale to 35 percent of the voice's own peak so quiet phrases still
+        # pull the bed down, then clamp so the duck is decisive.
+        duck = np.clip(envelope / (0.35 * peak), 0.0, 1.0)[:, None]
+        stems["music"] = stems["music"] * (1.0 - 0.90 * duck)
+        stems["ambience"] = stems["ambience"] * (1.0 - 0.50 * duck)
+        stems["effects"] = stems["effects"] * (1.0 - 0.25 * duck)
+
+    # Evidence that the hierarchy actually holds: measure the bed inside each
+    # dialogue window, not in the gap after it.
+    for text, at, span in (placed[:3] if lines else []):
+        i = int(at * RATE)
+        j = min(n, int((at + span) * RATE))
+        voice_rms = float(np.sqrt((stems["voice"][i:j] ** 2).mean()))
+        bed_rms = float(np.sqrt((stems["music"][i:j] ** 2).mean()))
+        print(
+            f"  inside dialogue at {at:5.1f}s: voice {20 * np.log10(max(voice_rms, 1e-9)):6.1f} dBFS"
+            f" / music {20 * np.log10(max(bed_rms, 1e-9)):6.1f} dBFS"
+            f" ({20 * np.log10(max(voice_rms, 1e-9) / max(bed_rms, 1e-9)):+.1f} dB)"
+        )
 
     mix = np.zeros((n, 2), dtype=np.float32)
     for name, stem in stems.items():

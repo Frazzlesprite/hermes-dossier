@@ -64,6 +64,7 @@ def screenshot(html: Path, png: Path) -> None:
             f"--user-data-dir={profile}",
             "--virtual-time-budget=4000",
             f"--screenshot={png}",
+            "--force-device-scale-factor=2",
             "--window-size=880,900",
             "file:///" + html.as_posix(),
         ],
@@ -86,7 +87,7 @@ def main() -> int:
         target_pdf.write_bytes(pdf.read_bytes())
         if Path(PDFTOPPM).exists():
             subprocess.run(
-                [PDFTOPPM, "-png", "-r", "120", "-f", "1", "-l", "1", str(target_pdf), str(OUT / f"{context}-page")],
+                [PDFTOPPM, "-png", "-r", "200", "-f", "1", "-l", "1", str(target_pdf), str(OUT / f"{context}-page")],
                 capture_output=True,
                 timeout=120,
             )
