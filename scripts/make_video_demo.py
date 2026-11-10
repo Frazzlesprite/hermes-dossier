@@ -67,7 +67,11 @@ CUES = {
         (52.0, 59.0, 0.85, "main"),
         (59.0, 66.0, 0.90, "outro"),
     ],
-    "ticks": [9.7, 10.7, 11.7, 12.7],
+    # Story sounds, per the Murch hierarchy: the rows landing, the keystrokes,
+    # then the three marks that carry the picture (split, zero, final hit).
+    "rows": [9.7, 10.7, 11.7, 12.7],
+    "keys": [5.6, 5.9, 6.2, 6.5, 6.8, 7.1, 7.4, 7.7],
+    "marks": [31.2, 43.9, 59.4],
     "voice": [
         ("Forty five minutes before the meeting.", 0.5),
         ("Type the company, and what you are walking into.", 5.4),
