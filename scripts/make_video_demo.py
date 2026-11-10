@@ -1,7 +1,7 @@
-r"""The submission demo: 66 seconds, 1080p, four-stem mix.
+r"""The submission demo: 34 seconds, 1080p, four-stem mix.
 
-Layout is authored in 1280x720 design units and drawn at 1.5x, so text and
-rules land on real 1080p pixels rather than being upscaled at the end.
+Draws at 2x design units (2560x1440) and downscales to 1080p, so small text
+survives compression. Layout is authored in 1280x720 units throughout.
 
     python scripts/make_briefs.py        # 2x screenshots
     python scripts/make_video_demo.py    # docs/dossier-demo.mp4
@@ -25,9 +25,8 @@ from PIL import Image, ImageDraw  # noqa: E402
 import make_audio  # noqa: E402
 import make_video_valve as vis  # noqa: E402
 
-# Design space, then the real frame.
 DW, DH = 1280, 720
-S = 2.0                     # draw at 2560x1440, then downscale to 1080p
+S = 2.0
 W, H = int(DW * S), int(DH * S)   # 2560x1440, both multiples of 16
 
 INK = vis.INK
@@ -52,39 +51,40 @@ BACKGROUND = vis.BACKGROUND.resize((W, H), Image.LANCZOS)
 GLOW_A = vis.GLOW_BLUE.resize((int(760 * S), int(760 * S)), Image.LANCZOS)
 GLOW_B = vis.GLOW_MINT.resize((int(560 * S), int(560 * S)), Image.LANCZOS)
 
+# Half the running time: 34 seconds.
 SCENES = [
-    ("hook", 5.0),
-    ("command", 4.0),
-    ("sources", 9.0),
-    ("brief", 13.0),
-    ("split", 12.0),
-    ("diff", 9.0),
-    ("pdf", 7.0),
-    ("close", 7.0),
+    ("hook", 3.0),
+    ("command", 2.5),
+    ("sources", 5.0),
+    ("brief", 6.0),
+    ("split", 6.5),
+    ("diff", 4.5),
+    ("pdf", 3.0),
+    ("close", 3.5),
 ]
 TOTAL = sum(d for _, d in SCENES)
 
 CUES = {
     "plan": [
-        (0.0, 5.0, 0.30, "intro"),
-        (5.0, 18.0, 0.70, "build"),
-        (18.0, 31.0, 1.00, "main"),
-        (31.0, 43.0, 1.00, "lift"),
-        (43.0, 52.0, 0.55, "break"),
-        (52.0, 59.0, 0.85, "main"),
-        (59.0, 66.0, 0.90, "outro"),
+        (0.0, 3.0, 0.35, "intro"),
+        (3.0, 10.5, 0.75, "build"),
+        (10.5, 16.5, 1.00, "main"),
+        (16.5, 23.0, 1.00, "lift"),
+        (23.0, 27.5, 0.50, "break"),
+        (27.5, 30.5, 0.85, "main"),
+        (30.5, 34.0, 0.90, "outro"),
     ],
-    "rows": [9.7, 10.7, 11.7, 12.7],
-    "keys": [5.6, 5.9, 6.2, 6.5, 6.8, 7.1, 7.4, 7.7],
-    "marks": [31.2, 43.9, 59.4],
+    "rows": [5.7, 6.25, 6.8, 7.35],
+    "keys": [3.3, 3.5, 3.7, 3.9, 4.1, 4.3, 4.5, 4.7],
+    "marks": [16.7, 23.2, 30.7],
     "voice": [
-        ("Forty five minutes before the meeting.", 0.5),
-        ("Type the company, and what you are walking into.", 5.4),
-        ("Every claim cites the page it came from.", 12.0),
-        ("This one is for the interview.", 19.2),
-        ("Same evidence. A different meeting, so different questions.", 31.8),
-        ("Refresh it the morning of, and it tells you what changed.", 44.2),
-        ("Dossier for Hermes.", 59.6),
+        ("Forty five minutes before the meeting.", 0.25),
+        ("Type the company, and what you are walking into.", 3.2),
+        ("Every claim cites the page it came from.", 6.6),
+        ("This one is for the interview.", 10.9),
+        ("Same evidence. Different questions.", 16.9),
+        ("Refresh in the morning. Only what changed.", 23.3),
+        ("Dossier for Hermes.", 30.8),
     ],
 }
 
@@ -129,18 +129,7 @@ def line(draw, x0, y0, x1, y1, **kwargs):
     draw.line([x0 * S, y0 * S, x1 * S, y1 * S], width=max(1, int(width * S)), **kwargs)
 
 
-
-def progress(image, elapsed: float, total: float) -> None:
-    draw = ImageDraw.Draw(image)
-    # Kept above H-8 so it survives the crop to 1920x1080 for X.
-    top = H - 34
-    draw.rectangle([0, top, W, top + 4], fill=(24, 27, 38))
-    draw.rectangle([0, top, int(W * min(1.0, elapsed / total)), top + 4], fill=ACCENT)
-
-
 def layer():
-    # The compositing canvas must match the real frame, not the design units,
-    # or everything past 1280 px is clipped.
     canvas = Image.new("RGBA", (W, H), (0, 0, 0, 0))
     return canvas, ImageDraw.Draw(canvas)
 
@@ -149,7 +138,7 @@ def stamp(image, canvas, alpha: float = 1.0):
     vis.stamp(image, canvas, alpha)
 
 
-def appear(t: float, delay: float, dur: float = 0.45) -> float:
+def appear(t: float, delay: float, dur: float = 0.3) -> float:
     return vis.appear(t, delay, dur)
 
 
@@ -179,7 +168,6 @@ def drift(image: Image.Image, t: float, total: float) -> Image.Image:
 
 
 def push(shot: Image.Image, p: float, box, focus=(0.5, 0.40), zoom=1.05) -> Image.Image:
-    """Ken Burns by sampling a float rectangle: no integer crop steps."""
     sw, sh = shot.size
     w, h = (box[2] - box[0]) * S, (box[3] - box[1]) * S
     z = 1.0 + (zoom - 1.0) * p
@@ -195,34 +183,44 @@ def page(shot: Image.Image, box) -> Image.Image:
     return shot.resize((max(1, int(shot.width * scale)), max(1, int(shot.height * scale))), Image.LANCZOS)
 
 
+def progress(image, elapsed: float, total: float) -> None:
+    draw = ImageDraw.Draw(image)
+    top = H - 34
+    draw.rectangle([0, top, W, top + 4], fill=(24, 27, 38))
+    draw.rectangle([0, top, int(W * min(1.0, elapsed / total)), top + 4], fill=ACCENT)
+
+
 def chip(image: Image.Image, label: str, alarm: bool = False) -> None:
     draw = ImageDraw.Draw(image)
     f = vis.font(MONO_B, int(13 * S))
-    width = int(f.getlength(label)) + int(28 * S)
+    pad = int(16 * S)
+    dot = int(4 * S)
+    gap = int(12 * S)
+    text_width = int(f.getlength(label))
+    width = text_width + pad * 2 + dot * 2 + gap
     x0 = W - int(46 * S) - width
     y0, y1 = int(34 * S), int(66 * S)
     colour = MINT if alarm else AMBER
-    draw.rounded_rectangle([x0, y0, W - int(46 * S), y1], radius=int(16 * S), outline=colour, width=max(1, int(S)))
-    r = int(4 * S)
-    draw.ellipse([x0 + int(12 * S), (y0 + y1) // 2 - r, x0 + int(12 * S) + 2 * r, (y0 + y1) // 2 + r], fill=colour)
-    draw.text((x0 + int(28 * S), y0 + int(8 * S)), label, font=f, fill=colour)
+    draw.rounded_rectangle([x0, y0, x0 + width, y1], radius=int(16 * S), outline=colour, width=max(1, int(S)))
+    cy = (y0 + y1) // 2
+    draw.ellipse([x0 + pad, cy - dot, x0 + pad + 2 * dot, cy + dot], fill=colour)
+    draw.text((x0 + pad + 2 * dot + gap, cy - int(9 * S)), label, font=f, fill=colour)
 
 
 # ------------------------------------------------------------------ scenes
 
 
 def scene_hook(t: float, data: dict) -> Image.Image:
-    image = drift(frame(), t, 5.0)
+    image = drift(frame(), t, 3.0)
     canvas, draw = layer()
 
-    p1 = appear(t, 0.1, 0.5)
+    p1 = appear(t, 0.05, 0.4)
     if p1 > 0:
         text(draw, (84, 210 - (1 - p1) * 14), "You have a meeting in 45 minutes.", path=SERIF_B, size=52)
-    p2 = appear(t, 1.5, 0.5)
+    p2 = appear(t, 0.6, 0.4)
     if p2 > 0:
         text(draw, (86, 296), "What do you actually know?", path=SERIF, size=34, fill=MUTED)
-
-    p3 = appear(t, 2.7, 0.7)
+    p3 = appear(t, 1.2, 0.5)
     if p3 > 0:
         rect(draw, [0, 0, DW, 4], fill=ACCENT)
         text(draw, (86, 420), "Dossier", path=SERIF_B, size=84)
@@ -232,26 +230,26 @@ def scene_hook(t: float, data: dict) -> Image.Image:
 
 
 def scene_command(t: float, data: dict) -> Image.Image:
-    image = drift(frame(), t, 4.0)
+    image = drift(frame(), t, 2.5)
     canvas, draw = layer()
 
-    p = ease(t / 0.4)
+    p = ease(t / 0.35)
     top = 132 - (1 - p) * 22
-    panel(draw, (66, top, DW - 66, top + 300), fill=(16, 19, 27), radius=12)
+    panel(draw, (66, top, DW - 66, top + 260), fill=(16, 19, 27), radius=12)
     rrect(draw, (66, top, DW - 66, top + 34), radius=12, fill=(28, 32, 43))
     for index, colour in enumerate(((255, 95, 86), (255, 189, 46), (39, 201, 63))):
         ellipse(draw, (82 + index * 18, top + 12, 92 + index * 18, top + 22), fill=colour)
     text(draw, (DW // 2 - 70, top + 10), "hermes — dossier", path=MONO, size=12, fill=DIM)
 
-    typed = min(len('prep "Valve Corporation" interview'), int(max(0.0, t - 0.4) * 26))
+    typed = min(len('prep "Valve Corporation" interview'), int(max(0.0, t - 0.25) * 42))
     command = "/dossier prep \"Valve Corporation\" interview"[:11 + typed]
     cursor = "▌" if int(t * 4) % 2 == 0 else " "
     text(draw, (92, top + 66), "$ " + command + cursor, path=MONO_B, size=21)
 
-    if t > 2.4:
+    if t > 1.5:
         tick(draw, 94, top + 128, MINT, 11)
         text(draw, (120, top + 124), "Valve Corporation  →  one candidate", path=MONO, size=15, fill=MINT)
-    if t > 2.9:
+    if t > 1.9:
         text(draw, (120, top + 156), "context: job interview  ·  purpose recorded", path=MONO, size=15, fill=DIM)
     stamp(image, canvas, 1.0)
     chip(image, "MEETING IN 45 MIN")
@@ -259,7 +257,7 @@ def scene_command(t: float, data: dict) -> Image.Image:
 
 
 def scene_sources(t: float, data: dict) -> Image.Image:
-    image = drift(frame(), t, 9.0)
+    image = drift(frame(), t, 5.0)
     canvas, draw = layer()
     panel(draw, (66, 88, DW - 66, DH - 92), fill=(16, 19, 27), radius=12)
 
@@ -269,9 +267,9 @@ def scene_sources(t: float, data: dict) -> Image.Image:
         ("search", "forbes.com/companies/valve", "fetched in full"),
         ("registry", "SEC EDGAR", "no registrant: private"),
     ]
-    y = 126
+    y = 132
     for index, (kind, host, note) in enumerate(rows):
-        p = appear(t, 0.35 + index * 1.0, 0.35)
+        p = appear(t, 0.25 + index * 0.5, 0.25)
         if p <= 0:
             continue
         dx = (1 - p) * -22
@@ -279,24 +277,24 @@ def scene_sources(t: float, data: dict) -> Image.Image:
         text(draw, (124 + dx, y), kind.ljust(10), path=MONO_B, size=17, fill=MINT)
         text(draw, (268 + dx, y), host, path=MONO, size=16, fill=INK)
         text(draw, (DW - 300, y), note, path=MONO, size=14, fill=DIM)
-        y += 40
+        y += 44
 
-    if t > 4.6:
-        text(draw, (96, y + 26), "what it could not do", path=MONO_B, size=14, fill=AMBER)
+    if t > 2.2:
+        text(draw, (96, y + 22), "what it could not do", path=MONO_B, size=14, fill=AMBER)
         notes = [
             "no SEC filing: Valve is private",
-            "3 news pages had no publication date, so they are not dated news",
+            "3 news pages had no publication date",
         ]
-        ny = y + 54
+        ny = y + 50
         for note in notes:
             for text_line in wrap(note, font(MONO, 13), DW - 260)[:2]:
                 text(draw, (100, ny), text_line, path=MONO, size=13, fill=(206, 184, 146))
                 ny += 20
 
-    if t > 6.6:
-        p = appear(t, 6.6, 0.4)
+    if t > 3.2:
+        p = appear(t, 3.2, 0.3)
         canvas2, draw2 = layer()
-        text(draw2, (96, DH - 132), "six sources   ·   six claims   ·   one brief", path=MONO_B, size=17, fill=INK)
+        text(draw2, (96, DH - 138), "six sources   ·   six claims   ·   one brief", path=MONO_B, size=17, fill=INK)
         stamp(image, canvas2, p)
     stamp(image, canvas, 1.0)
     chip(image, "MEETING IN 45 MIN")
@@ -304,19 +302,19 @@ def scene_sources(t: float, data: dict) -> Image.Image:
 
 
 def scene_brief(t: float, data: dict) -> Image.Image:
-    image = drift(frame(), t, 13.0)
+    image = drift(frame(), t, 6.0)
     canvas, draw = layer()
-    p = appear(t, 0.1, 0.4)
+    p = appear(t, 0.05, 0.3)
     text(draw, (66, 38), "Prepared for the interview", path=SERIF_B, size=28)
     text(draw, (68, 78), "one line, three facts, and the questions you can actually ask", size=15, fill=MUTED)
     stamp(image, canvas, p)
 
     canvas, draw = layer()
-    p = appear(t, 0.2, 0.6)
+    p = appear(t, 0.1, 0.4)
     box = (62, 112, 640, DH - 26)
     rrect(draw, box, radius=12, fill=(247, 247, 250), outline=(70, 78, 98), width=2)
     shot = Image.open(BRIEFS / "interview.png").convert("RGB")
-    thumb = push(shot, min(1.0, t / 13.0), box)
+    thumb = push(shot, min(1.0, t / 6.0), box)
     canvas.paste(thumb, (int(box[0] * S) + 6, int(box[1] * S) + 6))
     stamp(image, canvas, p)
 
@@ -328,7 +326,7 @@ def scene_brief(t: float, data: dict) -> Image.Image:
     ]
     y = 122
     for index, (label, detail) in enumerate(callouts):
-        p = appear(t, 1.2 + index * 1.5, 0.45)
+        p = appear(t, 0.5 + index * 0.85, 0.3)
         if p <= 0:
             y += 100
             continue
@@ -345,9 +343,9 @@ def scene_brief(t: float, data: dict) -> Image.Image:
 
 
 def scene_split(t: float, data: dict) -> Image.Image:
-    image = drift(frame(), t, 12.0)
+    image = drift(frame(), t, 6.5)
     canvas, draw = layer()
-    p = appear(t, 0.05, 0.4)
+    p = appear(t, 0.05, 0.3)
     text(draw, (66, 36), "Same evidence. Different questions.", path=SERIF_B, size=30)
     text(draw, (68, 78), "the context changes the brief, not the sources", size=15, fill=MUTED)
     stamp(image, canvas, p)
@@ -357,7 +355,7 @@ def scene_split(t: float, data: dict) -> Image.Image:
         ("SALES CALL", AMBER, data["sales"]["questions"], 656),
     ]
     for label, colour, questions, x in columns:
-        p = appear(t, 0.6 + (0.3 if x > 600 else 0), 0.5)
+        p = appear(t, 0.35 + (0.2 if x > 600 else 0), 0.35)
         canvas2, draw2 = layer()
         panel(draw2, (x, 120, x + 558, 470), fill=(22, 26, 36))
         rrect(draw2, (x + 18, 136, x + 138, 164), radius=14, outline=colour, width=1)
@@ -371,7 +369,7 @@ def scene_split(t: float, data: dict) -> Image.Image:
         stamp(image, canvas2, p)
 
     canvas3, draw3 = layer()
-    p = appear(t, 3.4, 0.5)
+    p = appear(t, 2.4, 0.3)
     text(draw3, (66, 500), "six sources, six claims, zero invented", path=MONO_B, size=16, fill=MUTED)
     text(draw3, (66, 540), "the questions change because the meeting changed", path=MONO_B, size=18, fill=INK)
     stamp(image, canvas3, p)
@@ -380,51 +378,50 @@ def scene_split(t: float, data: dict) -> Image.Image:
 
 
 def scene_diff(t: float, data: dict) -> Image.Image:
-    image = drift(frame(), t, 9.0)
+    image = drift(frame(), t, 4.5)
     canvas, draw = layer()
-    p = appear(t, 0.05, 0.4)
+    p = appear(t, 0.05, 0.3)
     text(draw, (66, 40), "And the second look", path=SERIF_B, size=30)
     text(draw, (68, 82), "refresh the day of the meeting", size=15, fill=MUTED)
     stamp(image, canvas, p)
 
     canvas, draw = layer()
-    p = appear(t, 0.2, 0.5)
+    p = appear(t, 0.1, 0.3)
     panel(draw, (66, 124, DW - 66, 396), fill=(21, 25, 36))
     text(draw, (96, 148), "DIFF AGAINST THE PREVIOUS SNAPSHOT", path=UI_B, size=11, fill=ACCENT)
     line(draw, 96, 174, DW - 96, 174, fill=(48, 54, 72))
     stamp(image, canvas, p)
 
-    p = back_out((t - 0.6) / 0.7)
+    p = back_out((t - 0.35) / 0.5)
     if p > 0:
         canvas2, draw2 = layer()
         text(draw2, (98, 206 + (1 - p) * 18), "0", path=SERIF_B, size=max(1, int(72 * p)), fill=MINT)
         stamp(image, canvas2, min(1.0, p))
 
     canvas3, draw3 = layer()
-    p = appear(t, 1.3, 0.4)
+    p = appear(t, 0.9, 0.3)
     text(draw3, (186, 238), "changes", path=SERIF, size=28, fill=MUTED)
-    text(draw3, (98, 316), "nothing moved, and it says so instead of inventing activity", size=17, fill=INK)
+    text(draw3, (98, 316), "nothing moved, and it says so", size=17, fill=INK)
     stamp(image, canvas3, p)
 
     canvas4, draw4 = layer()
-    p = appear(t, 2.6, 0.5)
-    text(draw4, (66, 448), "when something does move, only that appears:  + ceo,  - ceo,  nothing else",
-         path=MONO_B, size=15, fill=AMBER)
+    p = appear(t, 1.9, 0.3)
+    text(draw4, (66, 448), "when something moves, only that appears:  + ceo,  - ceo", path=MONO_B, size=15, fill=AMBER)
     stamp(image, canvas4, p)
     chip(image, "MEETING IN 45 MIN")
     return image
 
 
 def scene_pdf(t: float, data: dict) -> Image.Image:
-    image = drift(frame(), t, 7.0)
+    image = drift(frame(), t, 3.0)
     canvas, draw = layer()
-    p = appear(t, 0.05, 0.4)
+    p = appear(t, 0.05, 0.3)
     text(draw, (66, 38), "Take it with you", path=SERIF_B, size=28)
     text(draw, (68, 78), "A4 PDF and HTML, written by the plugin", size=15, fill=MUTED)
     stamp(image, canvas, p)
 
     canvas, draw = layer()
-    p = appear(t, 0.2, 0.5)
+    p = appear(t, 0.1, 0.35)
     lift = (1 - p) * 20
     box = (66, 110 + lift, 452, DH - 26 + lift)
     rrect(draw, box, radius=10, fill=(247, 247, 250), outline=(70, 78, 98), width=2)
@@ -432,42 +429,42 @@ def scene_pdf(t: float, data: dict) -> Image.Image:
     canvas.paste(shot, (int(box[0] * S) + 6, int(box[1] * S) + 6))
     stamp(image, canvas, p)
 
-    lines = ["no WeasyPrint, no typst", "word wrap, pagination, source appendix", "same run as the HTML"]
+    lines = ["no WeasyPrint, no typst", "same run as the HTML"]
     y = 150
     for index, text_line in enumerate(lines):
-        p = appear(t, 0.9 + index * 0.4, 0.4)
+        p = appear(t, 0.45 + index * 0.28, 0.3)
         canvas2, draw2 = layer()
         rect(draw2, (500, y + 6, 504, y + 20), fill=ACCENT)
         text(draw2, (518, y), text_line, size=18)
         stamp(image, canvas2, p)
-        y += 42
+        y += 46
     chip(image, "MEETING IN 45 MIN")
     return image
 
 
 def scene_close(t: float, data: dict) -> Image.Image:
-    image = drift(frame(), t, 7.0)
+    image = drift(frame(), t, 3.5)
     canvas, draw = layer()
-    p = appear(t, 0.1, 0.5)
+    p = appear(t, 0.05, 0.35)
     rect(draw, (0, 0, DW, 4), fill=ACCENT)
-    text(draw, (84, 150), "Dossier", path=SERIF_B, size=64)
-    text(draw, (88, 234), "sourced · dated · refreshable", path=SERIF, size=26, fill=MUTED)
+    text(draw, (84, 146), "Dossier", path=SERIF_B, size=64)
+    text(draw, (88, 230), "sourced · dated · refreshable", path=SERIF, size=26, fill=MUTED)
     stamp(image, canvas, p)
 
     lines = ["hermes plugins install dossier", '/dossier prep "Valve Corporation" interview']
-    y = 320
+    y = 316
     for index, text_line in enumerate(lines):
-        p = appear(t, 0.6 + index * 0.4, 0.4)
+        p = appear(t, 0.35 + index * 0.28, 0.3)
         canvas2, draw2 = layer()
         text(draw2, (88, y), text_line, path=MONO, size=18, fill=INK if index == 0 else MUTED)
         stamp(image, canvas2, p)
         y += 38
 
     canvas3, draw3 = layer()
-    p = appear(t, 1.8, 0.5)
-    text(draw3, (88, 424), "PDF · HTML · Desktop page · cron · watchlist", path=MONO, size=16, fill=MUTED)
-    text(draw3, (88, 470), "114 tests · doctor and validate clean · MIT", size=15, fill=MUTED)
-    text(draw3, (88, 520), "github.com/Frazzlesprite/dossier-plugin", path=MONO_B, size=20, fill=ACCENT)
+    p = appear(t, 1.2, 0.35)
+    text(draw3, (88, 420), "PDF · HTML · Desktop page · cron · watchlist", path=MONO, size=16, fill=MUTED)
+    text(draw3, (88, 466), "114 tests · doctor and validate clean · MIT", size=15, fill=MUTED)
+    text(draw3, (88, 516), "github.com/Frazzlesprite/dossier-plugin", path=MONO_B, size=20, fill=ACCENT)
     stamp(image, canvas3, p)
     chip(image, "BRIEF READY", alarm=True)
     return image
@@ -495,7 +492,7 @@ def render(data: dict, target: Path) -> Path:
     writer = imageio_ffmpeg.write_frames(
         str(target), (W, H), fps=30, codec="libx264",
         output_params=["-vf", "scale=1920:1080:flags=lanczos", "-crf", "14", "-preset", "slow",
-                        "-maxrate", "14M", "-bufsize", "28M", "-pix_fmt", "yuv420p"],
+                       "-maxrate", "14M", "-bufsize", "28M", "-pix_fmt", "yuv420p"],
     )
     writer.send(None)
     elapsed = 0.0
@@ -506,7 +503,7 @@ def render(data: dict, target: Path) -> Path:
             image = func(t, data)
             progress(image, elapsed + t, TOTAL)
             edge = min(t, duration - t)
-            alpha = 1.0 if edge >= 0.18 else edge / 0.18
+            alpha = 1.0 if edge >= 0.12 else edge / 0.12
             if alpha < 1.0:
                 image = Image.blend(Image.new("RGB", (W, H), (4, 5, 9)), image, alpha)
             writer.send(image.tobytes())
@@ -523,7 +520,7 @@ def main() -> Path:
     if os.environ.get("AUDIO_ONLY") and silent.exists():
         print("reusing rendered frames")
     else:
-        print("rendering 1080p frames...")
+        print("rendering 2x frames...")
         render(data, silent)
 
     print("audio...")
@@ -535,9 +532,6 @@ def main() -> Path:
         [
             imageio_ffmpeg.get_ffmpeg_exe(), "-y", "-loglevel", "error",
             "-i", str(silent), "-i", str(audio),
-            # X recommends at least 5 Mbps for a 1080p upload; a CRF pass on
-            # static frames lands around 1.8 Mbps, so the deliverable is
-            # re-encoded to a target rate instead of stream-copied.
             "-c:v", "libx264", "-preset", "medium",
             "-b:v", "8M", "-maxrate", "10M", "-bufsize", "20M",
             "-pix_fmt", "yuv420p",
@@ -546,7 +540,7 @@ def main() -> Path:
         ],
         check=True,
     )
-    print(f"wrote {OUT} ({TOTAL:.0f}s, {W}x{H}, 30fps, audio)")
+    print(f"wrote {OUT} ({TOTAL:.0f}s, 1920x1080, 30fps, audio)")
     return OUT
 
 

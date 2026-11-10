@@ -1,10 +1,8 @@
-"""Spy-techno in 5/4, in the Mission Impossible tradition.
+"""A playful bed: C major, 126 BPM, swung sixteenths, glockenspiel lead.
 
-Not four-on-the-floor trance: a chromatic ostinato, brass stabs, and a lot of
-space. Sparse drums on purpose, because the last cut had claps and hats fighting
-the voice.
-
-148 BPM, five beats a bar, E minor.
+The spy ostinato was too stern for a 34 second demo. This is a bouncy pluck
+groove: staccato bass, offbeat claps, a woodblock, and a glock melody that
+answers the chord every other bar. Sparse enough to leave the voice alone.
 """
 
 from __future__ import annotations
@@ -14,24 +12,24 @@ import math
 import numpy as np
 
 RATE = 44100
-BPM = 148.0
-BEAT = 60.0 / BPM            # 0.4054 s
-BAR = BEAT * 5               # 5/4
-EIGHTH = BEAT / 2
+BPM = 126.0
+BEAT = 60.0 / BPM
+BAR = BEAT * 4
+SIXTEENTH = BEAT / 4
+SWING = 0.62          # the second sixteenth of each pair lands late
 
-# i, VI, iv, V in E minor, one chord per bar of five.
 CHORDS = [
-    ([64, 67, 71], 40),   # Em
     ([60, 64, 67], 36),   # C
-    ([60, 64, 67], 33),   # Am
-    ([59, 63, 66], 35),   # B
+    ([57, 60, 64], 33),   # Am
+    ([53, 57, 60], 29),   # F
+    ([55, 59, 62], 31),   # G
 ]
 
-# The ostinato: ten eighths, chromatic, with a fifth at the end for the turn.
-OSTINATO = [0, 0, 1, 1, 0, 0, -1, 0, 0, 5]
-
-# Stabs land on beat one and beat four, which is what makes five feel like five.
-STAB_BEATS = (0.0, 3.0)
+# (bar offset, beat offset, note, length in beats) for the glock answer.
+MOTIF = [
+    (0.0, 0.0, 79, 0.5), (0.0, 0.75, 81, 0.5), (0.0, 1.5, 79, 1.0),
+    (1.0, 0.0, 76, 0.5), (1.0, 0.75, 74, 0.5), (1.0, 1.5, 72, 1.0),
+]
 
 
 def midi(note: int) -> float:
@@ -72,113 +70,74 @@ class Mix:
         self.buf[i:j, 1] += chunk * right
 
 
-def saw(freq: float, n: int, *, voices: int = 5, detune: float = 0.008,
-        harmonics: int = 7, bright: float = 0.42) -> np.ndarray:
+def pluck(freq: float, n: int, *, bright: float = 0.5) -> np.ndarray:
     t = _t(n)
-    out = np.zeros(n, dtype=np.float32)
-    spreads = [0.0] if voices <= 1 else [detune * (2.0 * i / (voices - 1) - 1.0) for i in range(voices)]
-    for index, spread in enumerate(spreads):
-        phase = (index * 0.41) % 1.0
-        for h in range(1, harmonics + 1):
-            amp = (bright ** (h - 1)) / h
-            if amp < 0.012:
-                break
-            out += (np.sin(2 * np.pi * freq * (1.0 + spread) * h * t + phase * h) * amp).astype(np.float32)
-    return out / max(1, voices)
+    tone = np.zeros(n, dtype=np.float32)
+    for h, weight in ((1, 1.0), (2, 0.42), (3, 0.22), (5, 0.1)):
+        tone += (np.sin(2 * np.pi * freq * h * t) * weight * (bright ** (h - 1))).astype(np.float32)
+    return tone / 2.4
 
 
-def kick(mix: Mix, at: float, gain: float = 0.85) -> None:
-    n = int(0.2 * RATE)
+def glock(freq: float, n: int) -> np.ndarray:
     t = _t(n)
-    body = np.sin(2 * np.pi * (115.0 - 70.0 * t / 0.2) * t).astype(np.float32)
-    click = np.random.default_rng(3).normal(0, 1, n).astype(np.float32) * _decay(n, 300) * 0.25
-    mix.add(at, (body * _decay(n, 19.0)) + click, gain)
+    tone = (
+        np.sin(2 * np.pi * freq * t)
+        + 0.5 * np.sin(2 * np.pi * freq * 2.76 * t)
+        + 0.2 * np.sin(2 * np.pi * freq * 5.4 * t)
+    ).astype(np.float32)
+    return tone * np.exp(-9.0 * t)
 
 
-def rim(mix: Mix, at: float, gain: float = 0.22) -> None:
-    """A rim click rather than a snare: no backbeat, just a marker."""
-    n = int(0.06 * RATE)
+def kick(mix: Mix, at: float, gain: float = 0.5) -> None:
+    n = int(0.16 * RATE)
+    t = _t(n)
+    body = np.sin(2 * np.pi * (110.0 - 55.0 * t / 0.16) * t).astype(np.float32)
+    mix.add(at, body * _decay(n, 22.0), gain)
+
+
+def clap(mix: Mix, at: float, gain: float = 0.18) -> None:
+    n = int(0.09 * RATE)
     noise = np.random.default_rng(int(at * 1300) + 5).normal(0, 1, n).astype(np.float32)
     noise = np.diff(noise, prepend=0.0)
-    tone = np.sin(2 * np.pi * 1750 * _t(n)).astype(np.float32) * 0.5
-    mix.add(at, (noise + tone) * _decay(n, 55.0), gain, pan=0.12)
+    mix.add(at, noise * _decay(n, 60.0), gain, pan=0.12)
 
 
-def shaker(mix: Mix, at: float, gain: float = 0.035) -> None:
-    n = int(0.05 * RATE)
+def woodblock(mix: Mix, at: float, gain: float = 0.16) -> None:
+    n = int(0.06 * RATE)
+    t = _t(n)
+    tone = (np.sin(2 * np.pi * 1180 * t) + 0.4 * np.sin(2 * np.pi * 1760 * t)).astype(np.float32)
+    mix.add(at, tone * _decay(n, 70.0), gain, pan=-0.2)
+
+
+def shaker(mix: Mix, at: float, gain: float = 0.03) -> None:
+    n = int(0.04 * RATE)
     noise = np.random.default_rng(int(at * 5000) + 17).normal(0, 1, n).astype(np.float32)
     noise = np.diff(noise, prepend=0.0)
-    mix.add(at, noise * _decay(n, 80.0), gain, pan=-0.35)
+    mix.add(at, noise * _decay(n, 90.0), gain, pan=-0.3)
 
 
-def hat(mix: Mix, at: float, gain: float = 0.05) -> None:
-    n = int(0.035 * RATE)
-    noise = np.random.default_rng(int(at * 9100) + 11).normal(0, 1, n).astype(np.float32)
-    noise = np.diff(noise, prepend=0.0) * np.diff(noise, prepend=0.0)
-    mix.add(at, noise * _decay(n, 120.0), gain, pan=0.3)
+def bass(mix: Mix, at: float, note: int, gain: float = 0.26) -> None:
+    n = int(0.13 * RATE)
+    tone = pluck(midi(note), n, bright=0.35)
+    mix.add(at, tone * _env(n, 0.004, 0.07) * _decay(n, 14.0), gain)
 
 
-def ostinato(mix: Mix, at: float, note: int, gain: float = 0.3) -> None:
-    n = int(0.1 * RATE)
-    tone = saw(midi(note), n, voices=3, detune=0.004, harmonics=5, bright=0.34)
-    mix.add(at, tone * _env(n, 0.003, 0.05) * _decay(n, 7.0), gain)
-
-
-def stab(mix: Mix, at: float, notes: list[int], gain: float = 0.2) -> None:
-    """Brass-ish: saw plus a squarer edge, short."""
-    n = int(0.3 * RATE)
-    t = _t(n)
+def stab(mix: Mix, at: float, notes: list[int], gain: float = 0.1) -> None:
+    n = int(0.18 * RATE)
     voice = np.zeros(n, dtype=np.float32)
     for note in notes:
-        freq = midi(note)
-        voice += saw(freq, n, voices=4, detune=0.006, harmonics=6, bright=0.4)
-        voice += (np.sign(np.sin(2 * np.pi * freq * t)) * 0.12).astype(np.float32)
-    mix.add(at, voice * _env(n, 0.008, 0.14) * _decay(n, 7.0), gain, pan=-0.08)
+        voice += pluck(midi(note + 12), n, bright=0.45)
+    mix.add(at, voice * _env(n, 0.006, 0.1) * _decay(n, 18.0), gain, pan=0.08)
 
 
-def pad(mix: Mix, at: float, notes: list[int], gain: float = 0.08, length: float = 2.1) -> None:
-    n = int(length * RATE)
-    voice = np.zeros(n, dtype=np.float32)
-    for note in notes:
-        voice += saw(midi(note), n, voices=5, detune=0.012, harmonics=5, bright=0.3)
-    mix.add(at, voice * _env(n, 0.35, 0.5), gain, pan=0.04)
-
-
-def lead(mix: Mix, at: float, note: int, length: float, gain: float = 0.12) -> None:
-    n = int(length * RATE)
+def bend(mix: Mix, at: float, note: int, gain: float = 0.09) -> None:
+    """A little upward scoop: the cheapest way to sound friendly."""
+    n = int(0.16 * RATE)
     t = _t(n)
-    phase = 2 * np.pi * midi(note) * t + 0.22 * np.sin(2 * np.pi * 5.0 * t)
-    tone = (np.sin(phase) + 0.35 * np.sin(2 * phase)).astype(np.float32)
-    mix.add(at, tone * _env(n, 0.04, 0.22) * _decay(n, 1.8), gain, pan=0.1)
-
-
-def riser(mix: Mix, at: float, gain: float = 0.18, length: float = 2.0) -> None:
-    n = int(length * RATE)
-    noise = np.random.default_rng(29).normal(0, 1, n).astype(np.float32)
-    noise = np.diff(noise, prepend=0.0)
-    ramp = np.clip(np.linspace(0.0, 1.0, n, dtype=np.float32), 0.0, None) ** 2.2
-    mix.add(at, noise * ramp, gain)
-
-
-def impact(mix: Mix, at: float, gain: float = 0.4) -> None:
-    n = int(0.9 * RATE)
-    t = _t(n)
-    body = np.sin(2 * np.pi * (80.0 - 42.0 * t) * t).astype(np.float32) * _decay(n, 4.0)
-    air = np.random.default_rng(5).normal(0, 1, n).astype(np.float32) * np.exp(-18.0 * t)
-    mix.add(at, body + air * 0.35, gain)
-
-
-def sidechain(n: int, kicks: list[float], depth: float = 0.45) -> np.ndarray:
-    env = np.ones(n, dtype=np.float32)
-    length = int(0.2 * RATE)
-    curve = (1.0 - depth * np.exp(-np.arange(length) / (0.05 * RATE))).astype(np.float32)
-    for at in kicks:
-        i = int(at * RATE)
-        if i >= n:
-            continue
-        j = min(n, i + length)
-        env[i:j] = np.minimum(env[i:j], curve[: j - i])
-    return env
+    freq = midi(note) * (1.0 + 0.04 * np.exp(-18.0 * t))
+    phase = 2 * np.pi * np.cumsum(freq) / RATE
+    tone = np.sin(phase).astype(np.float32) * 0.7 + np.sin(2 * phase).astype(np.float32) * 0.2
+    mix.add(at, tone * _decay(n, 16.0), gain, pan=0.25)
 
 
 def render(duration: float, plan: list[tuple[float, float, float, str]]) -> np.ndarray:
@@ -191,10 +150,9 @@ def render(duration: float, plan: list[tuple[float, float, float, str]]) -> np.n
                 return level, style
         return (plan[-1][2], plan[-1][3]) if plan else (0.8, "main")
 
+    chord_bus = Mix(duration)
     bass_bus = Mix(duration)
-    stab_bus = Mix(duration)
-    pad_bus = Mix(duration)
-    kicks: list[float] = []
+    scores = Mix(duration)
 
     bar = 0
     t = 0.0
@@ -202,54 +160,72 @@ def render(duration: float, plan: list[tuple[float, float, float, str]]) -> np.n
         chord, root = CHORDS[bar % len(CHORDS)]
         level, style = context(t)
 
-        # Drums: kick on one and four, rim on four, shaker underneath. No
-        # backbeat, no claps, nothing competing with the voice.
         if style in ("build", "main", "lift"):
-            for beat in (0.0, 3.0):
-                kick(mix, t + beat * BEAT, 0.8)
-                kicks.append(t + beat * BEAT)
-            rim(mix, t + 4.0 * BEAT, 0.2)
-            for beat in (1.0, 2.0):
-                hat(mix, t + beat * BEAT, 0.045)
-            for step in range(10):
-                shaker(mix, t + step * EIGHTH, 0.028)
-        elif style == "build":
-            kick(mix, t, 0.7)
-            kicks.append(t)
-        elif style == "break":
-            kick(mix, t, 0.55)
-            kicks.append(t)
-        elif style == "outro":
-            kick(mix, t, 0.7)
-            kicks.append(t)
+            kick(mix, t, 0.42)
+            kick(mix, t + 2 * BEAT, 0.42)
+            clap(mix, t + BEAT, 0.16)
+            clap(mix, t + 3 * BEAT, 0.16)
+            woodblock(mix, t + 1.5 * BEAT, 0.14)
+            woodblock(mix, t + 3.5 * BEAT, 0.1)
+            for step in range(16):
+                shaker(mix, t + step * SIXTEENTH, 0.024)
 
-        # The ostinato runs almost throughout: it is the spine.
-        if style != "outro" or bar == 0:
-            for step, semitone in enumerate(OSTINATO):
-                ostinato(bass_bus, t + step * EIGHTH, root + semitone,
-                         gain=(0.24 + 0.10 * level) * (1.0 if step % 5 == 0 else 0.8))
+        if style != "intro":
+            for step in range(8):
+                offset = step * 2 * SIXTEENTH
+                if step % 2:
+                    offset += SIXTEENTH * (SWING - 0.5) * 2
+                note = root + (7 if step % 4 == 3 else 0)
+                bass(bass_bus, t + offset, note, gain=0.22 + 0.08 * level)
+
+        if style in ("build", "main", "lift"):
+            for step in range(16):
+                swung = step * SIXTEENTH
+                if step % 2:
+                    swung += SIXTEENTH * (SWING - 0.5) * 2
+                note = chord[step % len(chord)] + (12 if step % 8 >= 4 else 0)
+                gain = (0.075 + 0.045 * level) * (1.0 if step % 4 == 0 else 0.75)
+                pl = pluck(midi(note), int(0.13 * RATE), bright=0.5)
+                chord_bus.add(t + swung, pl * _decay(int(0.13 * RATE), 20.0), gain,
+                              pan=(-0.35, 0.35)[step % 2])
 
         if style in ("main", "lift"):
-            for beat in STAB_BEATS:
-                stab(stab_bus, t + beat * BEAT, chord, gain=0.13 + 0.07 * level)
+            for bar_offset, beat_at, note, beats in MOTIF:
+                if int(bar_offset) == bar % 2:
+                    scores.add(t + beat_at * BEAT, glock(midi(note), int(0.5 * RATE)) * 0.6,
+                               gain=0.10 + 0.04 * level, pan=0.2)
+            if bar % 2 == 1:
+                bend(scores, t + 2.5 * BEAT, chord[1] + 12, gain=0.07 + 0.03 * level)
 
-        pad(pad_bus, t, chord, gain=0.05 + 0.03 * level, length=BAR + 0.2)
+        if style == "intro":
+            # Something soft under the hook: quarter-note plucks, no drums.
+            for beat in range(4):
+                note = chord[beat % len(chord)] + (12 if beat % 2 else 0)
+                pl = pluck(midi(note), int(0.4 * RATE), bright=0.38)
+                chord_bus.add(t + beat * BEAT, pl * _decay(int(0.4 * RATE), 7.0), 0.055,
+                              pan=(-0.2, 0.2)[beat % 2])
 
-        if style == "lift" and bar % 2 == 0:
-            for index, note in enumerate((76, 75, 74, 72)):
-                lead(mix, t + index * BEAT, note, BEAT * 0.9, gain=0.1)
+        if style == "break":
+            for step in (0, 2):
+                pl = pluck(midi(chord[step % len(chord)] + 12), int(0.3 * RATE), bright=0.4)
+                chord_bus.add(t + step * BEAT, pl * _decay(int(0.3 * RATE), 9.0), 0.06)
 
-        if style == "outro" and bar == 0:
-            impact(mix, t, 0.3)
-
-        bar += 1
         t += BAR
+        bar += 1
 
-    pump = sidechain(n, kicks, depth=0.4)
-    stab_bus.buf *= pump[:, None]
-    pad_bus.buf *= sidechain(n, kicks, depth=0.3)[:, None]
+    # A little duck of the bus under the chord, so it bounces.
+    bounce = np.ones(n, dtype=np.float32)
+    length = int(0.14 * RATE)
+    curve = (1.0 - 0.35 * np.exp(-np.arange(length) / (0.04 * RATE))).astype(np.float32)
+    step = 0.0
+    while step < duration:
+        i = int(step * RATE)
+        j = min(n, i + length)
+        if i < n:
+            bounce[i:j] = np.minimum(bounce[i:j], curve[: j - i])
+        step += BEAT
 
-    mix.buf += bass_bus.buf
-    mix.buf += stab_bus.buf
-    mix.buf += pad_bus.buf
+    mix.buf += chord_bus.buf * bounce[:, None]
+    mix.buf += bass_bus.buf * bounce[:, None]
+    mix.buf += scores.buf
     return mix.buf

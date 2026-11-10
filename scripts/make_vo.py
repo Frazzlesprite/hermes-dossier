@@ -16,6 +16,8 @@ from pathlib import Path
 import numpy as np
 
 VOICE = "en-GB-RyanNeural"
+RATE_CHANGE = "+12%"
+PITCH = "-12Hz"
 RATE = 44100
 CACHE = Path(tempfile.gettempdir()) / "opencode" / "vo-cache"
 
@@ -28,7 +30,7 @@ def _ffmpeg() -> str:
 
 def synthesise(text: str) -> Path:
     CACHE.mkdir(parents=True, exist_ok=True)
-    digest = hashlib.sha256(f"{VOICE}|{text}".encode("utf-8")).hexdigest()[:16]
+    digest = hashlib.sha256(f"{VOICE}|{RATE_CHANGE}|{PITCH}|{text}".encode("utf-8")).hexdigest()[:16]
     target = CACHE / f"{digest}.wav"
     if target.exists():
         return target
@@ -38,7 +40,7 @@ def synthesise(text: str) -> Path:
     async def run() -> None:
         import edge_tts
 
-        await edge_tts.Communicate(text, VOICE, rate="+8%").save(str(mp3))
+        await edge_tts.Communicate(text, VOICE, rate=RATE_CHANGE, pitch=PITCH).save(str(mp3))
 
     asyncio.run(run())
     subprocess.run(
