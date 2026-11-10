@@ -532,10 +532,13 @@ def main() -> Path:
         [
             imageio_ffmpeg.get_ffmpeg_exe(), "-y", "-loglevel", "error",
             "-i", str(silent), "-i", str(audio),
-            "-c:v", "libx264", "-preset", "medium",
-            "-b:v", "8M", "-maxrate", "10M", "-bufsize", "20M",
+            # Deliverable profile: 720p at 1.55 Mbps, which lands the 34 second
+            # cut under 8 MB. The 1080p master stays on disk for future cuts.
+            "-vf", "scale=1280:720:flags=lanczos",
+            "-c:v", "libx264", "-preset", "slow",
+            "-b:v", "1.55M", "-maxrate", "1.8M", "-bufsize", "3.6M",
             "-pix_fmt", "yuv420p",
-            "-c:a", "aac", "-b:a", "192k",
+            "-c:a", "aac", "-b:a", "128k",
             "-shortest", "-movflags", "+faststart", str(OUT),
         ],
         check=True,
