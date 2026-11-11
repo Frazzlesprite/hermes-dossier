@@ -239,7 +239,7 @@ def scene_command(t: float, data: dict) -> Image.Image:
     rrect(draw, (66, top, DW - 66, top + 34), radius=12, fill=(28, 32, 43))
     for index, colour in enumerate(((255, 95, 86), (255, 189, 46), (39, 201, 63))):
         ellipse(draw, (82 + index * 18, top + 12, 92 + index * 18, top + 22), fill=colour)
-    text(draw, (DW // 2 - 70, top + 10), "hermes — dossier", path=MONO, size=12, fill=DIM)
+    text(draw, (DW // 2 - 70, top + 10), "hermes · dossier", path=MONO, size=12, fill=DIM)
 
     typed = min(len('prep "Valve Corporation" interview'), int(max(0.0, t - 0.25) * 42))
     command = "/dossier prep \"Valve Corporation\" interview"[:11 + typed]
