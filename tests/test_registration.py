@@ -90,6 +90,17 @@ def test_the_slash_command_is_registered():
     assert "dossier" in ctx.commands
 
 
+def test_deleting_a_dossier_is_not_a_tool():
+    """An irreversible delete gated only by a model-set flag is not gated.
+
+    The reviewer asked for it to stay on `/dossier forget` and the Desktop
+    button, so a person is the caller. This fails if it is ever re-registered.
+    """
+    ctx = RecordingCtx()
+    register(ctx)
+    assert "dossier_forget" not in ctx.tools
+
+
 def test_a_scheduled_refresh_blueprint_is_offered():
     ctx = RecordingCtx()
     register(ctx)

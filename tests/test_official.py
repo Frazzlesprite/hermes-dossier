@@ -55,3 +55,37 @@ def test_linked_pages_come_first_and_are_not_fetched_twice(monkeypatch):
     urls = [doc.url for doc in result["documents"]]
     assert urls == ["https://acme.example/", "https://acme.example/about"]
     assert web.requested.count("https://acme.example/about") == 1
+
+
+def test_a_lookalike_domain_is_not_same_site(monkeypatch):
+    """`evilacme.com` ends with `acme.com` and used to pass the same-site test."""
+    page = (
+        "<html><head><title>Acme Robotics</title></head><body>"
+        "<p>We build warehouse robots.</p>"
+        "<a href=\"https://evilacme.com/about\">About</a>"
+        "</body></html>"
+    )
+    web = fakeweb.install(
+        monkeypatch,
+        fakeweb.FakeWeb(pages={"https://acme.example/": page}),
+    )
+    result = collect_official("acme.example")
+    assert all("evilacme.com" not in doc.url for doc in result["documents"])
+    assert not any("evilacme.com" in url for url in web.requested)
+
+
+def test_a_real_subdomain_is_same_site(monkeypatch):
+    page = (
+        "<html><head><title>Acme Robotics</title></head><body>"
+        "<p>We build warehouse robots.</p>"
+        "<a href=\"https://blog.acme.example/about\">About</a>"
+        "</body></html>"
+    )
+    fakeweb.install(
+        monkeypatch,
+        fakeweb.FakeWeb(
+            pages={"https://acme.example/": page, "https://blog.acme.example/about": ABOUT}
+        ),
+    )
+    urls = [doc.url for doc in collect_official("acme.example")["documents"]]
+    assert "https://blog.acme.example/about" in urls

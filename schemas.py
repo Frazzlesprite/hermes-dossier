@@ -85,22 +85,6 @@ REFRESH = {
     },
 }
 
-FORGET = {
-    "name": "dossier_forget",
-    "description": (
-        "Permanently delete an entity's dossier: claims, evidence, snapshots, rendered briefs and "
-        "watchlist entry. Requires confirm=true. Use when the user asks to forget or delete a dossier."
-    ),
-    "parameters": {
-        "type": "object",
-        "properties": {
-            "name": {"type": "string", "description": "Entity name or numeric dossier id."},
-            "confirm": {"type": "boolean", "description": "Must be true; the deletion is irreversible."},
-        },
-        "required": ["name", "confirm"],
-    },
-}
-
 WATCH = {
     "name": "dossier_watch",
     "description": (
@@ -119,4 +103,4 @@ WATCH = {
     },
 }
 
-ALL = (NAME, SHOW, DIFF, REFRESH, FORGET, WATCH)
+ALL = (NAME, SHOW, DIFF, REFRESH, WATCH)

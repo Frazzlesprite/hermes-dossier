@@ -97,7 +97,7 @@ def _write_outputs(name: str, html: str, pdf: bytes) -> dict[str, str]:
 def _purge_briefs(name: str) -> int:
     """Delete every rendered brief for an entity.
 
-    `dossier_forget` must remove the briefs as well as the rows: a rendered A4
+    Deleting a dossier must remove the briefs as well as the rows: a rendered A4
     file is the whole dossier in one document, and leaving it on disk would make
     the delete a lie.
     """
@@ -308,7 +308,7 @@ def forget(args: dict, *, ctx=None, **kwargs) -> str:
         counts["briefs"] = _purge_briefs(entity["canonical_name"])
         return _dump({"status": "deleted", "entity": entity["canonical_name"], "deleted": counts})
     except Exception as exc:
-        return _dump({"error": f"dossier_forget failed: {type(exc).__name__}: {exc}"})
+        return _dump({"error": f"forget failed: {type(exc).__name__}: {exc}"})
 
 
 def watch(args: dict, *, ctx=None, **kwargs) -> str:
@@ -339,6 +339,8 @@ HANDLERS = {
     "dossier_show": show,
     "dossier_diff": diff,
     "dossier_refresh": refresh,
-    "dossier_forget": forget,
+    # No `dossier_forget` on purpose: an irreversible delete gated only by a
+    # `confirm` boolean the model itself sets is not gated. It stays on the
+    # slash command and the Desktop button, where a person is the caller.
     "dossier_watch": watch,
 }

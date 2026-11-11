@@ -13,8 +13,10 @@ Rules baked in here rather than left to each adapter:
 
 from __future__ import annotations
 
+import ipaddress
 import json
 import re
+import socket
 import threading
 import time
 import urllib.error
@@ -25,14 +27,10 @@ from dataclasses import dataclass, field
 from html.parser import HTMLParser
 from typing import Optional
 
-DEFAULT_UA = "Dossier/0.1 (+https://github.com/Frazzlesprite/dossier-plugin)"
+DEFAULT_UA = "Dossier/0.1 (+https://github.com/Frazzlesprite/hermes-dossier)"
 MAX_BYTES = 2_000_000
 MIN_HOST_INTERVAL = 1.0
 _TIMEOUT = 15.0
-
-_PRIVATE_HOST = re.compile(
-    r"^(localhost|127\.|0\.0\.0\.0|10\.|192\.168\.|169\.254\.|172\.(?:1[6-9]|2\d|3[01])\.|\[?::1\]?$)"
-)
 
 _rate_lock = threading.Lock()
 _last_hit: dict[str, float] = {}
@@ -84,18 +82,111 @@ def _throttle(host: str, interval: float) -> None:
         _last_hit[host] = time.monotonic()
 
 
+def _address_is_public(address: ipaddress.IPv4Address | ipaddress.IPv6Address) -> bool:
+    """Is this a routable public address? Anything else is refused.
+
+    v4-mapped IPv6 (`::ffff:127.0.0.1`) is judged as the IPv4 address it
+    really is, or the loopback check would be one spelling away from useless.
+    """
+    mapped = getattr(address, "ipv4_mapped", None)
+    if mapped is not None:
+        address = mapped
+    if (
+        address.is_private          # RFC 1918 and IPv6 ULA fc00::/7
+        or address.is_loopback
+        or address.is_link_local
+        or address.is_reserved
+        or address.is_multicast
+        or address.is_unspecified
+    ):
+        return False
+    # CGNAT (100.64/10) is not flagged as private by every Python version, and
+    # `is_global` is the honest question: is this address routable on the
+    # public internet at all?
+    return address.is_global
+
+
+def _resolve(host: str, port: int) -> list[ipaddress.IPv4Address | ipaddress.IPv6Address]:
+    """Every address the host resolves to, or refuse if we cannot tell.
+
+    Fail closed: a name we cannot resolve is not a name we will hand to
+    `urlopen`, because the resolution there is the same one an attacker would
+    be controlling.
+    """
+    try:
+        infos = socket.getaddrinfo(host, port, type=socket.SOCK_STREAM)
+    except (socket.gaierror, UnicodeError, ValueError) as exc:
+        raise FetchRefused(f"refusing to fetch {host!r}: it does not resolve ({exc})") from exc
+
+    addresses: list[ipaddress.IPv4Address | ipaddress.IPv6Address] = []
+    for info in infos:
+        raw = str(info[4][0]).split("%", 1)[0]  # drop an IPv6 zone id
+        try:
+            addresses.append(ipaddress.ip_address(raw))
+        except ValueError as exc:
+            raise FetchRefused(f"refusing to fetch {host!r}: unreadable address {raw!r}") from exc
+    if not addresses:
+        raise FetchRefused(f"refusing to fetch {host!r}: no addresses returned")
+    return addresses
+
+
 def _validate(url: str) -> None:
+    """Refuse a URL unless every address its host resolves to is public.
+
+    Model-chosen domains, search results and links scraped out of fetched pages
+    all reach this function, so a literal-only check is not enough: `lvh.me`
+    resolves to 127.0.0.1, and `2130706433` is 127.0.0.1 on platforms that
+    accept the legacy numeric form.
+
+    Residual window: name resolution happens here and again inside `urlopen`, so
+    a DNS server that answers differently the second time could still point at a
+    private address. Closing that needs a connection pinned to the address we
+    checked; it is a rewrite of the fetch stack, and this check is what makes
+    the common cases impossible rather than unlikely.
+    """
     parsed = urllib.parse.urlparse(url)
     if parsed.scheme not in ("http", "https"):
         raise FetchRefused(f"unsupported scheme {parsed.scheme!r}")
-    host = (parsed.hostname or "").lower()
+    host = (parsed.hostname or "").strip().rstrip(".")
     if not host:
         raise FetchRefused("no host")
-    if _PRIVATE_HOST.match(host):
-        raise FetchRefused(f"refusing to fetch a private/loopback host: {host}")
+    try:
+        port = parsed.port or (443 if parsed.scheme == "https" else 80)
+    except ValueError as exc:
+        raise FetchRefused(f"invalid port in {url!r}") from exc
+    for address in _resolve(host, port):
+        if not _address_is_public(address):
+            raise FetchRefused(
+                f"refusing to fetch {host!r}: it resolves to the non-public address {address}")
 
 
 _robots_cache: dict[str, Optional[object]] = {}
+
+
+class _GuardedRedirectHandler(urllib.request.HTTPRedirectHandler):
+    """The same host check on every hop, plus the same rate limit.
+
+    `urlopen` follows a 302 to any host it is given, so a public page could
+    bounce the fetch to 169.254.169.254 or the LAN and hand the response back as
+    evidence. The redirect target is only fetched if it passes `_validate`, and
+    the new host is throttled, because the limit is keyed on the original host.
+    """
+
+    def __init__(self, policy: "Policy") -> None:
+        super().__init__()
+        self.policy = policy
+
+    def redirect_request(self, req, fp, code, msg, headers, newurl):
+        request = super().redirect_request(req, fp, code, msg, headers, newurl)
+        if request is None:
+            return None
+        _validate(request.full_url)
+        _throttle(urllib.parse.urlparse(request.full_url).netloc, self.policy.min_interval)
+        return request
+
+
+def _opener(policy: "Policy") -> urllib.request.OpenerDirector:
+    return urllib.request.build_opener(_GuardedRedirectHandler(policy))
 
 
 def _robots_for(url: str, policy: Policy):
@@ -118,7 +209,11 @@ def _robots_for(url: str, policy: Policy):
 
 
 def _raw_get(url: str, policy: Policy, *, allow_robots_file: bool = False) -> Fetch:
-    _validate(url)
+    try:
+        _validate(url)
+    except FetchRefused as exc:
+        # A scraped link to localhost is a note, not a crashed build.
+        return Fetch(url=url, status=0, error=str(exc), retrieved_at=now_iso())
     parsed = urllib.parse.urlparse(url)
     if policy.respect_robots and not allow_robots_file:
         parser = _robots_for(url, policy)
@@ -133,7 +228,7 @@ def _raw_get(url: str, policy: Policy, *, allow_robots_file: bool = False) -> Fe
     headers.update(policy.extra_headers)
     request = urllib.request.Request(url, headers=headers, method="GET")
     try:
-        with urllib.request.urlopen(request, timeout=policy.timeout) as response:
+        with _opener(policy).open(request, timeout=policy.timeout) as response:
             raw = response.read(policy.max_bytes + 1)
             truncated = len(raw) > policy.max_bytes
             raw = raw[: policy.max_bytes]
@@ -150,6 +245,8 @@ def _raw_get(url: str, policy: Policy, *, allow_robots_file: bool = False) -> Fe
                 retrieved_at=now_iso(),
                 final_url=response.geturl(),
                 error="truncated to size cap" if truncated else None)
+    except FetchRefused as exc:
+        return Fetch(url=url, status=0, error=f"redirect refused: {exc}", retrieved_at=now_iso())
     except urllib.error.HTTPError as exc:
         return Fetch(url=url, status=exc.code, error=f"HTTP {exc.code}", retrieved_at=now_iso())
     except urllib.error.URLError as exc:

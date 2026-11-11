@@ -5,7 +5,7 @@ api_version: 1
 description: "Sourced, dated, refreshable dossiers on organisations and people in a professional capacity, with a what-changed diff."
 author: Frazzlesprite
 license: MIT
-homepage: https://github.com/Frazzlesprite/dossier-plugin
+homepage: https://github.com/Frazzlesprite/hermes-dossier
 tags: [research, due-diligence, briefing, crm]
 requires_hermes: ">=0.23"
 provides_tools:
@@ -13,7 +13,6 @@ provides_tools:
   - dossier_show
   - dossier_diff
   - dossier_refresh
-  - dossier_forget
   - dossier_watch
 provides_hooks:
   - pre_llm_call
@@ -52,5 +51,5 @@ config_schema:
     description: "Companies House API key (United Kingdom). Optional."
   user_agent:
     type: str
-    default: "Dossier/0.1 (+https://github.com/Frazzlesprite/dossier-plugin)"
+    default: "Dossier/0.1 (+https://github.com/Frazzlesprite/hermes-dossier)"
     description: "User-Agent sent with every outbound request."

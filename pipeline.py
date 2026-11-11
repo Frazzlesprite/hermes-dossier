@@ -35,7 +35,7 @@ DEFAULTS = {
     "freshness_days": 90,
     "retention_days": 90,
     "allow_people": True,
-    "user_agent": "Dossier/0.1 (+https://github.com/Frazzlesprite/dossier-plugin)",
+    "user_agent": "Dossier/0.1 (+https://github.com/Frazzlesprite/hermes-dossier)",
     "country": "",
     "registry_contact": "",
 }

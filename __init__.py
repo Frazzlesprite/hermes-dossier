@@ -94,7 +94,7 @@ USAGE = (
     "       /dossier show|diff|refresh|forget <name>\n"
     "       /dossier watch <name> [off|manual|daily|weekly]\n"
     "`prep` frames the questions for the meeting you are actually going to.\n"
-    "`forget` requires confirm=true on the tool, or the delete button in the Desktop."
+    "`forget` deletes a dossier. It is a command, not a tool: nothing a model can call."
 )
 
 
@@ -171,7 +171,9 @@ def register(ctx) -> None:
             payload = {"name": rest}
         if verb == "forget":
             payload["confirm"] = True
-        handler = tools.HANDLERS[f"dossier_{verb}"]
+        # `forget` is a slash command only: no model-facing tool, so it is not
+        # in tools.HANDLERS. A typed command is a person asking.
+        handler = tools.forget if verb == "forget" else tools.HANDLERS[f"dossier_{verb}"]
         result = json.loads(handler(payload, ctx=ctx, **kwargs) or "{}")
         if result.get("error"):
             return f"Dossier: {result['error']}"

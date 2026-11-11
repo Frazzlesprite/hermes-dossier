@@ -15,7 +15,7 @@ A dossier is a living file keyed to one entity, not a one-shot search. Every cla
 
 Do **not** use it on a private individual with no professional context, or to look up anything in the sensitive categories below.
 
-## The five calls
+## The four calls
 
 | Call | Use |
 |---|---|
@@ -23,9 +23,10 @@ Do **not** use it on a private individual with no professional context, or to lo
 | `dossier_show` | Read what is already stored, without touching the network. |
 | `dossier_diff` | What changed between the last two snapshots. This is the pre-meeting question. |
 | `dossier_refresh` | Re-fetch and snapshot, then report the diff. |
-| `dossier_forget` | Delete everything about the entity. Requires `confirm=true`. |
 
 Slash equivalents: `/dossier <name>`, `/dossier show|diff|refresh|forget <name>`.
+
+Deleting a dossier is deliberately **not** a tool. Tell the user to run `/dossier forget <name>` or press Delete on the Desktop page, so a person is the one asking.
 
 ## Frame it for the meeting
 

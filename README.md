@@ -47,7 +47,7 @@ This section exists because the obvious version of this plugin is a privacy prob
 - **no scraping behind a login** or against a site's terms;
 - **no dossier on a private individual** with no professional context.
 
-**Required:** a stated purpose at creation, a retention period, and `dossier_forget` that deletes everything.
+**Required:** a stated purpose at creation, a retention period, and a delete that removes everything. Deleting is a slash command (`/dossier forget <name>`) and a Desktop button, never a tool, so a model cannot drop a dossier.
 
 The brief's footer repeats this in one line. The policy tests are in `tests/test_policy.py` and fail the build if a sensitive term becomes a predicate or a column.
 
@@ -60,7 +60,7 @@ The brief's footer repeats this in one line. The policy tests are in `tests/test
 | `/dossier <name>` | Build or refresh a dossier, return a card |
 | `/dossier prep <name> [interview\|sales\|partnership\|diligence\|supplier]` | Frame the brief for the meeting you actually have |
 | `/dossier show\|diff\|refresh\|forget\|watch <name>` | The other verbs |
-| `dossier_build` / `dossier_show` / `dossier_diff` / `dossier_refresh` / `dossier_forget` / `dossier_watch` | The same six, as tools |
+| `dossier_build` / `dossier_show` / `dossier_diff` / `dossier_refresh` / `dossier_watch` | The same five, as tools. Deleting is not one of them |
 | Desktop → **Dossiers** | The list, the full brief, snapshot history, Refresh and Forget |
 | Full brief | A4 **PDF** and HTML, two pages plus a numbered source appendix |
 | Automation blueprint | A scheduled refresh users pick in `/blueprint`, no cron syntax |

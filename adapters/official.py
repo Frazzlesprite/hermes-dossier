@@ -70,7 +70,10 @@ def collect_official(
             documents.append(doc)
             seen.add(registrable_domain(doc.url))
             origin = doc.url.rstrip("/")
-            same_site = [link for link in links if registrable_domain(link).endswith(domain)]
+            same_site = [
+                link for link in links
+                if (d := registrable_domain(link)) == domain or d.endswith("." + domain)
+            ]
             for link in same_site[:MAX_ABOUT_PAGES]:
                 if link.rstrip("/") in {d.url.rstrip("/") for d in documents}:
                     continue
