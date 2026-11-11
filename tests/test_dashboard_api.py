@@ -44,7 +44,7 @@ def api(tmp_path, monkeypatch):
     )
     conn.commit()
     conn.close()
-    monkeypatch.setattr(module, "_connect", lambda: db.connect(tmp_path / "api.db"))
+    monkeypatch.setattr(module, "_connection", lambda: db.connect(tmp_path / "api.db"))
     return module
 
 
@@ -93,7 +93,11 @@ def test_forget_requires_confirmation(api):
     assert "Acme Robotics" not in names
 
 
-def test_refresh_without_a_domain_explains_itself(api):
+def test_refresh_without_the_plugin_loaded_says_where_to_run_it(api, monkeypatch):
+    # In this test process the plugin package *is* imported by conftest, so the
+    # backend would find it. Pretend it is somewhere else, which is the real
+    # dashboard case, and check the message the user gets.
+    monkeypatch.setattr(api, "_loaded_plugin", lambda: None)
     payload = asyncio.run(api.refresh(2))
     assert payload["ok"] is False
-    assert "domain or GitHub" in payload["reason"]
+    assert "/dossier refresh" in payload["reason"]

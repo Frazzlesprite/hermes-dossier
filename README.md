@@ -205,13 +205,13 @@ python scripts/harness_check.py kalamari.club https://kalamari.club
 python scripts/demo_contradiction.py
 
 # the search and news adapters against the real Hermes web_search backend
-python scripts/search_check.py "Kalamari" kalamari.club
+python scripts/demo_valve.py          # replay the captured Valve set
 
 # rebuild the demo videos (Pillow, numpy, imageio-ffmpeg; dev only)
 python scripts/make_video.py
 ```
 
-`scripts/search_check.py` imports one Hermes internal (`tools.web_tools.web_search_tool`) because there is no way to reach the search backend without a session context. That warning shows up in `hermes plugins validate`; the plugin itself uses `ctx.dispatch_tool` and nothing else.
+The demo scripts are developer tooling and are not loaded by the plugin. Two that reached into a Hermes internal for the search backend were removed, so `hermes plugins validate` now reports no private core imports at all; the plugin itself only uses `ctx.dispatch_tool`.
 
 ## Demo
 

@@ -215,3 +215,30 @@ class Brief:
     @property
     def claim_count(self) -> int:
         return sum(len(s.bullets) for s in self.sections)
+
+    def as_dict(self) -> dict[str, Any]:
+        """Flat, JSON-safe view. Stored with the snapshot so the dashboard can
+        serve a brief without importing the pipeline."""
+        return {
+            "headline": self.headline,
+            "questions": list(self.questions),
+            "generated_at": self.generated_at,
+            "purpose": self.purpose,
+            "context": self.context,
+            "notes": list(self.notes),
+            "sections": [
+                {
+                    "id": section.id,
+                    "title": section.title,
+                    "note": section.note,
+                    "bullets": [
+                        {
+                            "text": bullet.text,
+                            "sources": sorted({e.source_url for e in bullet.evidence}),
+                        }
+                        for bullet in section.bullets
+                    ],
+                }
+                for section in self.sections
+            ],
+        }

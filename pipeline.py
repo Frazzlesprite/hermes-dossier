@@ -393,7 +393,10 @@ def build(
             (registry_id, stamp, entity_id))
         conn.commit()
 
-    snapshot_id = store.save_snapshot(conn, entity_id, stamp, html, verification.claims, pdf)
+    snapshot_id = store.save_snapshot(
+        conn, entity_id, stamp, html, verification.claims, pdf,
+        brief_json=json.dumps(brief.as_dict(), ensure_ascii=False),
+    )
     conn.execute("UPDATE watchlist SET last_run = ? WHERE entity_id = ?", (stamp, entity_id))
     conn.commit()
     diff = store.latest_diff(conn, entity_id)

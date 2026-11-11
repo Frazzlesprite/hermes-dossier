@@ -61,7 +61,8 @@ CREATE TABLE IF NOT EXISTS snapshots (
   entity_id INTEGER NOT NULL,
   taken_at TEXT NOT NULL,
   brief_html TEXT NOT NULL,
-  claims_json TEXT NOT NULL
+  claims_json TEXT NOT NULL,
+  brief_json TEXT
 );
 CREATE TABLE IF NOT EXISTS watchlist (
   entity_id INTEGER PRIMARY KEY,
@@ -103,6 +104,8 @@ def _migrate(conn: sqlite3.Connection) -> None:
     columns = {row[1] for row in conn.execute("PRAGMA table_info(snapshots)").fetchall()}
     if "brief_pdf" not in columns:
         conn.execute("ALTER TABLE snapshots ADD COLUMN brief_pdf BLOB")
+    if "brief_json" not in columns:
+        conn.execute("ALTER TABLE snapshots ADD COLUMN brief_json TEXT")
     entity_columns = {row[1] for row in conn.execute("PRAGMA table_info(entities)").fetchall()}
     if "country" not in entity_columns:
         conn.execute("ALTER TABLE entities ADD COLUMN country TEXT")

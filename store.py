@@ -25,17 +25,19 @@ def save_snapshot(
     taken_at: str,
     brief_html: str,
     claims: list[Claim],
-    brief_pdf: bytes | None = None) -> int:
+    brief_pdf: bytes | None = None,
+    brief_json: str | None = None) -> int:
     cursor = conn.execute(
-        "INSERT INTO snapshots (entity_id, taken_at, brief_html, claims_json, brief_pdf) VALUES (?, ?, ?, ?, ?)",
-        (entity_id, taken_at, brief_html, claims_payload(claims), brief_pdf))
+        "INSERT INTO snapshots (entity_id, taken_at, brief_html, claims_json, brief_pdf, brief_json) "
+        "VALUES (?, ?, ?, ?, ?, ?)",
+        (entity_id, taken_at, brief_html, claims_payload(claims), brief_pdf, brief_json))
     conn.commit()
     return int(cursor.lastrowid)
 
 
 def recent_snapshots(conn: sqlite3.Connection, entity_id: int, limit: int = 2) -> list[dict[str, Any]]:
     rows = conn.execute(
-        "SELECT id, entity_id, taken_at, brief_html, brief_pdf, claims_json FROM snapshots "
+        "SELECT id, entity_id, taken_at, brief_html, brief_pdf, claims_json, brief_json FROM snapshots "
         "WHERE entity_id = ? ORDER BY taken_at DESC, id DESC LIMIT ?",
         (entity_id, limit)).fetchall()
     return [dict(r) for r in rows]
