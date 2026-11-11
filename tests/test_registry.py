@@ -69,6 +69,41 @@ def test_edgar_without_a_contact_is_skipped_with_a_reason():
     assert "registry_contact" in result["notes"][0]
 
 
+INCORPORATION = json.dumps(
+    {
+        "cik": 320193,
+        "taxonomy": "dei",
+        "tag": "EntityIncorporationDateOfIncorporation",
+        "units": {
+            "date": [
+                {"end": "1977-01-03", "val": "1977-01-03", "filed": "2026-02-01"},
+            ]
+        },
+    }
+)
+
+
+def test_edgar_does_not_invent_a_founding_year(monkeypatch):
+    """EDGAR has no incorporation date, so the adapter claims none.
+
+    Of eighteen large filers sampled, none tagged
+    dei:EntityIncorporationDateOfIncorporation. A first-filing date is not a
+    founding date, so the brief gets no founded claim from the US registry.
+    """
+    _install(
+        monkeypatch,
+        {
+            "company_tickers": TICKERS,
+            "submissions": json.dumps(SUBMISSIONS),
+            "companyconcept": INCORPORATION,
+        },
+    )
+    result = registry.collect_edgar("Apple", contact="dev@example.com")
+    doc = result["documents"][0]
+    assert "Incorporated" not in doc.text
+    assert not [c for c in extract([doc]).claims if c.predicate == "founded"]
+
+
 def test_abn_without_a_guid_says_so():
     result = registry.collect_abn("Acme Pty Ltd", "")
     assert result["documents"] == []

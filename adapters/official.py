@@ -18,6 +18,10 @@ from .base import Policy, fetch, html_to_text, now_iso, published_at
 
 _ABOUT = re.compile(r'href=["\']([^"\']*(?:about|company|who-we-are|our-story|contact)[^"\']*)["\']', re.I)
 MAX_ABOUT_PAGES = 2
+# When the front page does not link an about page, these are the usual paths.
+# Tried only after the links, and a miss is silent: guessing a path is a probe,
+# not a failure of the entity.
+FALLBACK_PATHS = ("/about", "/about-us", "/company", "/our-story")
 
 
 def _page(url: str, policy: Optional[Policy]) -> tuple[Optional[Document], list[str]]:
@@ -75,6 +79,23 @@ def collect_official(
                     documents.append(extra)
             break
         notes.extend(links)
+
+    if len(documents) == 1:
+        # A homepage that links no about page still usually has /about. Without
+        # this, a company whose front page is all marketing gave a brief with no
+        # founding year and no headcount, because the prose lives one click
+        # further on.
+        seen = {d.url.rstrip("/") for d in documents}
+        for path in FALLBACK_PATHS:
+            if len(documents) > MAX_ABOUT_PAGES:
+                break
+            url = f"https://{domain}{path}"
+            if url.rstrip("/") in seen:
+                continue
+            extra, _ = _page(url, policy)
+            if extra:
+                documents.append(extra)
+                seen.add(extra.url.rstrip("/"))
 
     if not documents:
         notes.append(f"official: could not read {domain}")

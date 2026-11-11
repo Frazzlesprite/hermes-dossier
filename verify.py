@@ -55,7 +55,11 @@ def upgrade_source_type(doc: Document, entity_domain: Optional[str]) -> Document
             retrieved_at=doc.retrieved_at,
             published_at=doc.published_at,
             domain=doc.domain,
-            note=doc.note)
+            note=doc.note,
+            # Losing this turned a page that describes itself into one where
+            # the only description available was its title, so the brief got
+            # "For other press inquiries, contact Kaci" as a one-line.
+            description=doc.description)
     return doc
 
 

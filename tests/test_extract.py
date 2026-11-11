@@ -118,3 +118,39 @@ def test_a_model_failure_is_a_note_not_a_crash():
     report = extract_with_llm(PAGE, Broken())
     assert not report.claims
     assert any("model extraction failed" in r["reason"] for r in report.rejected)
+
+
+def test_hq_keeps_the_region_the_page_states():
+    """A town alone is a weaker fact than the page's own "city, state"."""
+    report = extract([PAGE])
+    hq = next(c for c in report.claims if c.predicate == "hq")
+    assert hq.value == "Canberra, Australia"
+
+
+def test_headcount_in_the_words_an_about_page_uses():
+    """"a team of 40", "employs 120", "over 300 staff" are the same claim."""
+    page = Document(
+        url="https://acme.example/about",
+        title="About Acme",
+        text=(
+            "Acme Robotics is a team of 40 engineers and designers. "
+            "Across its offices it employs 120 people. "
+        ),
+        source_type="official",
+        retrieved_at="2026-11-09T00:00:00Z",
+        domain="acme.example",
+    )
+    values = {c.value for c in extract([page]).claims if c.predicate == "employees"}
+    assert values == {"40", "120"}
+
+
+def test_a_lowercase_line_continues_the_sentence_above():
+    """Inline markup must not become a full stop, or quotes turn to fragments."""
+    from dossier.adapters.base import html_to_text
+
+    html = (
+        "<html><body><p>We created</p><p>Steam</p>"
+        "<p>in 2003 as a digital distribution channel.</p></body></html>"
+    )
+    _, text, _, _ = html_to_text(html)
+    assert "We created Steam in 2003 as a digital distribution channel." in " ".join(text.split())

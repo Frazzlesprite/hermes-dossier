@@ -238,6 +238,16 @@ def html_to_text(html: str, limit: int = 40_000) -> tuple[str, str, dict[str, st
         if not line:
             continue
         if lines and not lines[-1].endswith((".", "!", "?", ":", ";")):
+            # Inline markup splits a sentence across lines: "We created" /
+            # "Steam" / "in 2003". A full stop there turned one sentence into
+            # three fragments, and fragments make poor evidence. A line that
+            # starts lower-case, or a one or two word line with no terminal
+            # punctuation, is the tail of the sentence above rather than a new
+            # one.
+            tail = line.split()
+            if line[0].islower() or (len(tail) <= 2 and not line.endswith((".", "!", "?", ":", ";"))):
+                lines[-1] += " " + line
+                continue
             lines[-1] += "."
         lines.append(line)
     text = "\n".join(lines)

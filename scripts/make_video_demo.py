@@ -262,9 +262,9 @@ def scene_sources(t: float, data: dict) -> Image.Image:
     panel(draw, (66, 88, DW - 66, DH - 92), fill=(16, 19, 27), radius=12)
 
     rows = [
-        ("official", "valvesoftware.com", "3 pages"),
+        ("official", "valvesoftware.com", "4 pages"),
         ("search", "en.wikipedia.org", "fetched in full"),
-        ("search", "forbes.com/companies/valve", "fetched in full"),
+        ("news", "engadget.com", "2026-11-04"),
         ("registry", "SEC EDGAR", "no registrant: private"),
     ]
     y = 132
@@ -283,7 +283,8 @@ def scene_sources(t: float, data: dict) -> Image.Image:
         text(draw, (96, y + 22), "what it could not do", path=MONO_B, size=14, fill=AMBER)
         notes = [
             "no SEC filing: Valve is private",
-            "3 news pages had no publication date",
+            "no headcount we can defend: 60, 250, 350",
+            "1 anti-bot wall skipped: a captcha is not a source",
         ]
         ny = y + 50
         for note in notes:
@@ -292,10 +293,9 @@ def scene_sources(t: float, data: dict) -> Image.Image:
                 ny += 20
 
     if t > 3.2:
-        p = appear(t, 3.2, 0.3)
-        canvas2, draw2 = layer()
-        text(draw2, (96, DH - 138), "six sources   ·   six claims   ·   one brief", path=MONO_B, size=17, fill=INK)
-        stamp(image, canvas2, p)
+        # Drawn on the panel canvas: the panel is opaque and stamped last, so
+        # anything stamped before it is hidden behind it.
+        text(draw, (96, DH - 138), "eight sources   ·   nine claims   ·   one brief", path=MONO_B, size=17, fill=INK)
     stamp(image, canvas, 1.0)
     chip(image, "MEETING IN 45 MIN")
     return image
@@ -320,8 +320,8 @@ def scene_brief(t: float, data: dict) -> Image.Image:
 
     callouts = [
         ("ONE LINE", data["interview"]["headline"].split(": ", 1)[-1]),
-        ("FACTS", "founded 1996  ·  hq Bellevue"),
-        ("CAUTION", "do not quote headcount: sources disagree"),
+        ("FACTS", "founded 1996  ·  hq Bellevue, Washington"),
+        ("CAUTION", "headcount: one source, three figures, so do not quote it"),
         ("QUESTIONS", "team, first ninety days, how success is measured"),
     ]
     y = 122
@@ -370,7 +370,7 @@ def scene_split(t: float, data: dict) -> Image.Image:
 
     canvas3, draw3 = layer()
     p = appear(t, 2.4, 0.3)
-    text(draw3, (66, 500), "six sources, six claims, zero invented", path=MONO_B, size=16, fill=MUTED)
+    text(draw3, (66, 500), "eight sources, nine claims, zero invented", path=MONO_B, size=16, fill=MUTED)
     text(draw3, (66, 540), "the questions change because the meeting changed", path=MONO_B, size=18, fill=INK)
     stamp(image, canvas3, p)
     chip(image, "MEETING IN 45 MIN")
@@ -463,8 +463,8 @@ def scene_close(t: float, data: dict) -> Image.Image:
     canvas3, draw3 = layer()
     p = appear(t, 1.2, 0.35)
     text(draw3, (88, 420), "PDF · HTML · Desktop page · cron · watchlist", path=MONO, size=16, fill=MUTED)
-    text(draw3, (88, 466), "114 tests · doctor and validate clean · MIT", size=15, fill=MUTED)
-    text(draw3, (88, 516), "github.com/Frazzlesprite/dossier-plugin", path=MONO_B, size=20, fill=ACCENT)
+    text(draw3, (88, 466), "124 tests · doctor and validate clean · MIT", size=15, fill=MUTED)
+    text(draw3, (88, 516), "github.com/Frazzlesprite/hermes-dossier", path=MONO_B, size=20, fill=ACCENT)
     stamp(image, canvas3, p)
     chip(image, "BRIEF READY", alarm=True)
     return image

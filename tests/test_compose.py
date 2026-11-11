@@ -84,3 +84,30 @@ def test_memory_line_is_attributed_not_stated_as_fact():
     why = next(s for s in brief.sections if s.id == "why")
     assert "Canberra supply-chain meetup" in (why.note or "")
     assert why.bullets == ()
+
+
+def test_sources_are_listed_once_per_page():
+    """Four quotes from one page are one source, not four lines in the appendix."""
+    url = "https://acme.example/about"
+    quotes = [
+        "Acme employs 120 employees.",
+        "Acme was founded in 2014.",
+        "Acme is headquartered in Canberra.",
+        "Acme builds warehouse robots.",
+    ]
+    drafts = [
+        ClaimDraft(predicate=predicate, value=value, evidence=Evidence(
+            source_url=url,
+            source_type="official",
+            quote=quote,
+            retrieved_at="2026-11-08T00:00:00Z",
+            published_at="2026-10-01",
+        ))
+        for predicate, value, quote in zip(
+            ("employees", "founded", "hq", "product"),
+            ("120", "2014", "Canberra", "Warehouse robots"),
+            quotes,
+        )
+    ]
+    brief = compose({"canonical_name": "Acme Robotics"}, verify(drafts).claims, generated_at="2026-11-08T00:00:00Z")
+    assert [item.source_url for item in brief.sources] == [url]

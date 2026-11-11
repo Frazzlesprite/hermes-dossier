@@ -143,6 +143,75 @@ def test_a_distinctive_name_keeps_its_coverage(tmp_path, monkeypatch):
     assert any("news.example" in url for url in used), "two-token names should keep third-party coverage"
 
 
+def test_a_legal_suffix_still_makes_a_name_distinctive(tmp_path, monkeypatch):
+    """"Valve Corporation" is not the one-word collision case that "Valve" is.
+
+    `name_tokens` strips "Corporation", which made the guard treat a two-word
+    registered name as a single word and throw away every news article about it
+    for not containing the company's domain.
+    """
+    web = fakeweb.install(
+        monkeypatch,
+        fakeweb.FakeWeb(
+            pages={
+                "https://valve.example/": (
+                    "<html><head><title>Valve Corporation</title>"
+                    "<meta name='description' content='Valve Corporation makes games, Steam and hardware.'>"
+                    "</head><body><p>Valve Corporation was founded in 1996.</p></body></html>"
+                ),
+                "https://news.example/valve-rules": (
+                    "<html><head><title>Valve changes its release rules</title>"
+                    "<meta property='article:published_time' content='2026-11-04T09:00:00Z'>"
+                    "</head><body><p>Valve changed the rules for releasing a game on Steam.</p>"
+                    "</body></html>"
+                ),
+            },
+            results=[
+                {"url": "https://valve.example/", "title": "Valve Corporation"},
+                {"url": "https://news.example/valve-rules", "title": "Valve changes its release rules"},
+            ],
+        ),
+    )
+    conn = db.connect(tmp_path / "valve.db")
+    try:
+        result = pipeline.build(
+            "Valve Corporation", conn=conn, search_fn=web.search, config=Config(sources_per_brief=6)
+        )
+    finally:
+        conn.close()
+
+    assert result["status"] == "ok"
+    used = {item["source_url"] for claim in result["claims"] for item in claim["evidence"]}
+    assert any("news.example" in url for url in used), "a registered-style name keeps its coverage"
+
+
+def test_an_anti_bot_challenge_page_is_not_a_source(tmp_path, monkeypatch):
+    wall = (
+        "<html><head><title>Making sure you're not a bot!</title></head><body>"
+        "<p>You are seeing this because the administrator of this website has set up Anubis "
+        "to protect the server against the scourge of AI companies aggressively scraping "
+        "websites.</p></body></html>"
+    )
+    web = fakeweb.install(
+        monkeypatch,
+        fakeweb.FakeWeb(
+            pages={"https://acme.example/": fakeweb.ACME_ABOUT_V1, "https://acme.example/wiki": wall},
+            results=[{"url": "https://acme.example/wiki", "title": "Acme wiki"}],
+        ),
+    )
+    conn = db.connect(tmp_path / "wall.db")
+    try:
+        result = pipeline.build(
+            "Acme Robotics", conn=conn, search_fn=web.search, domain="acme.example", config=Config()
+        )
+    finally:
+        conn.close()
+
+    assert any("interstitial" in note for note in result["notes"])
+    used = {item["source_url"] for claim in result["claims"] for item in claim["evidence"]}
+    assert not any("wiki" in url for url in used), "a captcha wall produced evidence"
+
+
 def test_a_sales_context_is_stored_and_shapes_the_questions(tmp_path, monkeypatch):
     web = fakeweb.install(monkeypatch, fakeweb.acme_web(1))
     conn = db.connect(tmp_path / "ctx.db")

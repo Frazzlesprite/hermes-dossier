@@ -80,7 +80,17 @@ def _quote_for(text: str, spans: list[tuple[int, int]], start: int, end: int) ->
 RULES: tuple[tuple[str, re.Pattern[str]], ...] = (
     ("founded", re.compile(r"\b(?:was\s+)?(?:founded|established|incorporated)\b\s*(?:in\s+)?((?:1[89]|20)\d{2})\b", re.I)),
     ("employees", re.compile(r"\b(\d[\d,]{0,7})\+?\s+(?:employees|staff|people|team members|workers)\b", re.I)),
-    ("hq", re.compile(r"\b(?i:headquartered|head office is|based|located)\s+in\s+([A-Z][A-Za-z.'\- ]{1,60})")),
+    # "a team of 40", "employs 120", "workforce of 900": the same claim in the
+    # words an About page actually uses, where the number comes first only
+    # sometimes.
+    ("employees", re.compile(
+        r"\b(?:team of|staff of|workforce of|headcount of|employs|employing)\s+"
+        r"(?:over\s+|more than\s+|about\s+|around\s+|approximately\s+|roughly\s+)?"
+        r"(\d[\d,]{0,7})\b", re.I)),
+    # The town alone ("Bellevue") is a weaker fact than the page's own phrasing
+    # ("Bellevue, Washington"), and the region only follows when capitalised,
+    # so "based in London, which is..." still yields London.
+    ("hq", re.compile(r"\b(?i:headquartered|head office is|based|located)\s+in\s+([A-Z][A-Za-z.'\- ]{1,60}(?:,\s*[A-Z][A-Za-z.'\-]{1,30})?)")),
     ("ceo", re.compile(r"\b(?i:CEO|chief executive officer|chief executive|managing director)\b\s*(?:is|was|:|\b)\s*([A-Z][A-Za-z.'\-]+(?:\s+[A-Z][A-Za-z.'\-]+){1,3})")),
     ("funding", re.compile(r"\b(?:raised|secured|closed|announced)\b[^.$]{0,40}?([$€£]\s?\d[\d.,]*\s?(?:million|billion|m|bn|k)?)", re.I)),
 )
@@ -121,6 +131,30 @@ def _mentions_entity(quote: str, entity_name: str) -> bool:
     return False
 
 
+def _names_entity_first(quote: str, value: str, entity_name: str) -> bool:
+    """Is the entity named before the value, not merely somewhere in the quote?
+
+    A Wikipedia sentence, "A consumer group, based in France, filed a lawsuit
+    against Valve", names Valve and states a location, but the location belongs
+    to the group. Requiring the entity first makes that sentence unusable as
+    evidence about Valve, at the cost of the occasional backwards construction
+    ("in Bellevue, Valve..."), which is rejected and counted rather than
+    guessed at.
+    """
+    if not entity_name:
+        return False
+    haystack = normalise_space(quote).casefold()
+    needle = normalise_space(value).casefold()
+    at = haystack.find(needle) if needle else -1
+    if at <= 0:
+        return False
+    head = haystack[:at]
+    for token in re.findall(r"[a-z0-9]{3,}", entity_name.casefold()):
+        if re.search(rf"\b{re.escape(token)}\b", head):
+            return True
+    return False
+
+
 def _accept(
     report: ExtractionReport,
     doc: Document,
@@ -145,11 +179,15 @@ def _accept(
     if quote not in text_norm:
         report.reject(predicate, "quote is not verbatim in the source", quote)
         return
-    if predicate in STABLE_PREDICATES and not self_described and not _mentions_entity(quote, entity_name):
+    if predicate in STABLE_PREDICATES and not self_described:
         # "Nvidia CEO Jensen Huang said..." is not a fact about the entity we
         # are building a dossier on, however true the sentence is.
-        report.reject(predicate, "third-party page does not name the entity in the quote", quote)
-        return
+        if not _mentions_entity(quote, entity_name):
+            report.reject(predicate, "third-party page does not name the entity in the quote", quote)
+            return
+        if not _names_entity_first(quote, value, entity_name):
+            report.reject(predicate, "third-party page attaches the value to another subject", quote)
+            return
     hit = _policy_hit(value, quote)
     if hit:
         report.reject(predicate, f"sensitive category refused: {hit}", quote)
@@ -276,8 +314,10 @@ def extract_document(
 
     # The page describing itself in one line is the best product claim. A site's
     # meta description is written for exactly this; a sentence picked out of the
-    # body is the fallback, and only on the entity's own page.
-    if doc.description and len(doc.description) >= 15 and not doc.description.startswith("("):
+    # body is the fallback, and only on the entity's own page. Third-party pages
+    # are excluded on purpose: an article's meta description summarises the
+    # article, so "Valve warns of slower Steam approvals" is not what Valve does.
+    if self_described and doc.description and len(doc.description) >= 15 and not doc.description.startswith("("):
         value = _first_sentence(doc.description)
         _accept(report, doc, "product", value, value, text_norm, **context)
     elif doc.source_type == "official" and doc.title:

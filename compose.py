@@ -340,13 +340,15 @@ def compose(
     )
 
     sources: list[Evidence] = []
-    seen: set[tuple[str, str]] = set()
+    seen: set[str] = set()
     for claim in claims:
         for item in claim.evidence:
-            key = (item.source_url, item.quote_hash)
-            if key in seen:
+            # One line per page, not one per quote: the citation numbers are
+            # already per URL, so a page quoted four times was printed four
+            # times in the Sources appendix.
+            if item.source_url in seen:
                 continue
-            seen.add(key)
+            seen.add(item.source_url)
             sources.append(item)
 
     return Brief(

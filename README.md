@@ -17,7 +17,7 @@ Hosts it contacts:
 | The entity's own domain (and pages it links to, e.g. `/about`) | The organisation describing itself |
 | Whatever host your configured Hermes web-search backend returns | Finding candidate pages, which are then fetched in full |
 | `api.github.com` and `github.com` | Public organisation profile and repositories |
-| `www.sec.gov`, `data.sec.gov` | SEC EDGAR: the published ticker file, then filings per CIK (US, no key) |
+| `www.sec.gov`, `data.sec.gov` | SEC EDGAR: the published ticker file and filings per CIK (US, no key) |
 | `abr.business.gov.au` | ABN Lookup (Australia, free GUID required) |
 | `api.company-information.service.gov.uk` | Companies House (UK, free API key) |
 
@@ -84,7 +84,7 @@ A person dossier always requires a stated purpose, and defaults to the `intervie
 
 A brief has: one line, why they matter to you (drawn from Hermes memory and labelled as memory), facts, recent items, contested or unconfirmed claims, risks, three questions to ask, and the sources.
 
-Adapters: official site, web search, news, GitHub, and company registry (SEC EDGAR out of the box; ABN Lookup and Companies House when a credential is configured). A registry record is a primary source, so it carries the top confidence band.
+Adapters: the official site (front page, the about pages it links, and the usual about paths when it links none), web search, news, GitHub, and company registry. SEC EDGAR runs out of the box and gives the registered name, the head office and filing dates, but no founding year: companies rarely tag one, and a first filing date is not a birth date. Companies House does give `date_of_creation`, and ABN Lookup adds the entity type and state when a GUID is configured. A registry record is a primary source, so it carries the top confidence band.
 
 Person dossiers get the same pipeline with `role` claims instead of `ceo`, and they **require a stated purpose:** the professional context. Without one the build is refused.
 
@@ -191,7 +191,7 @@ hermes plugins doctor . --ci
 hermes plugins validate . --install-deps
 ```
 
-Two scripts do the unglamorous work of proving it outside the fixtures:
+Two scripts do the unglamorous work of proving it outside the fixtures, and two rebuild the demo:
 
 ```bash
 # one live brief against the real network, throwaway database
@@ -204,18 +204,19 @@ python scripts/harness_check.py kalamari.club https://kalamari.club
 # the demo case offline: a contradiction, then a leadership change
 python scripts/demo_contradiction.py
 
-# the search and news adapters against the real Hermes web_search backend
-python scripts/demo_valve.py          # replay the captured Valve set
+# replay the captured Valve set through the real pipeline, no network
+python scripts/demo_valve.py
 
-# rebuild the demo videos (Pillow, numpy, imageio-ffmpeg; dev only)
-python scripts/make_video.py
+# rebuild the demo (Pillow, numpy, imageio-ffmpeg, edge-tts; dev only)
+python scripts/make_briefs.py         # briefs.json and 2x screenshots
+python scripts/make_video_demo.py     # docs/dossier-demo.mp4
 ```
 
 The demo scripts are developer tooling and are not loaded by the plugin. Two that reached into a Hermes internal for the search backend were removed, so `hermes plugins validate` now reports no private core imports at all; the plugin itself only uses `ctx.dispatch_tool`.
 
 ## Demo
 
-`docs/dossier-demo.mp4`: 66 seconds. Hook, a real terminal, and the same Valve evidence read twice, once for an interview and once for a sales call. Score and voiceover are synthesised at build time, so there is nothing to license. Every figure and question comes from a replay of the captured sources, and the brief frames are screenshots of the HTML and PDF that run produced.
+`docs/dossier-demo.mp4`: 34 seconds. Hook, a real terminal, dated news arriving, and the same Valve evidence read twice, once for an interview and once for a sales call. Score and voiceover are synthesised at build time, so there is nothing to license. Every figure, date and question comes from a replay of the captured sources, and the brief frames are screenshots of the HTML and PDF that run produced. The caution on screen is the brief's own: one source gives three headcounts, so the brief refuses to hand you one.
 
 Three things that will save you an afternoon:
 

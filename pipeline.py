@@ -193,14 +193,17 @@ def _guard_name_collisions(
 ) -> list[Document]:
     """Drop third-party pages that only share a one-word name.
 
-    A single-token name is the collision-prone case: "Kalamari" is a Canberra
+    A single-word name is the collision-prone case: "Kalamari" is a Canberra
     app studio, a Paris PR agency that renamed itself, a Greek restaurant and a
     song. For those names we require a page to name the entity's own domain, so
-    a random homonym cannot contribute claims. Multi-token names ("Acme
-    Robotics") are distinctive enough to keep their coverage.
+    a random homonym cannot contribute claims. Multi-word names ("Acme
+    Robotics", "Valve Corporation") are distinctive enough to keep their
+    coverage, and a legal suffix counts as a word here: `name_tokens` strips
+    "Corporation", and stripping it made the guard throw away every news
+    article about Valve for not containing its domain.
     """
     name = candidate.get("name") or ""
-    if len(resolve_mod.name_tokens(name)) >= 2:
+    if len([word for word in re.split(r"\s+", name.strip()) if word]) >= 2:
         return documents
 
     domain = (candidate.get("domain") or "").casefold()
@@ -218,6 +221,39 @@ def _guard_name_collisions(
         notes.append(
             f"collision guard: dropped {dropped} source(s) that mention {name!r} but not "
             f"{domain or 'its own domain'}; a one-word name is ambiguous"
+        )
+    return kept
+
+
+_WALL_MARKERS = (
+    "making sure you're not a bot",
+    "checking your browser",
+    "verify you are human",
+    "enable javascript and cookies",
+    "protect the server against",
+    "just a moment",
+)
+
+
+def _drop_interstitials(documents: list[Document], notes: list[str]) -> list[Document]:
+    """An anti-bot wall is not a source.
+
+    Anubis, Cloudflare and friends answer a 200 with a short page about proving
+    you are human. Parsed like an article, that page yielded a one-line such as
+    "You are seeing this because the administrator of this website has set up
+    Anubis", which is a quote about a captcha. Dropped and counted instead.
+    """
+    kept: list[Document] = []
+    dropped = 0
+    for doc in documents:
+        blob = f"{doc.title} {doc.text}".casefold()
+        if len(doc.text) < 2000 and any(marker in blob for marker in _WALL_MARKERS):
+            dropped += 1
+            continue
+        kept.append(doc)
+    if dropped:
+        notes.append(
+            f"dropped {dropped} anti-bot interstitial page(s): a challenge page is not a source"
         )
     return kept
 
@@ -353,6 +389,7 @@ def build(
     notes.extend(registry["notes"])
 
     documents = _dedupe_documents(collected, config.sources_per_brief)
+    documents = _drop_interstitials(documents, notes)
     documents = _guard_name_collisions(documents, candidate, notes)
     documents = [upgrade_source_type(d, candidate.get("domain")) for d in documents]
 

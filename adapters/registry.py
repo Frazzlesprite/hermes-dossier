@@ -198,6 +198,12 @@ def collect_edgar(name: str, policy: Optional[Policy] = None, *, contact: str = 
     if chosen:
         lines.append(f"Filed its {chosen[0]} on {chosen[1]}.")
 
+    # No founding date here on purpose. EDGAR exposes one only where a filer
+    # tags `dei:EntityIncorporationDateOfIncorporation`, and none of eighteen
+    # large filers sampled did; Companies House gives `date_of_creation`, and
+    # the entity's own pages give prose. A year invented from a first filing
+    # date would be worse than no year at all.
+
     doc = _document(
         f"https://www.sec.gov/cgi-bin/browse-edgar?action=getcompany&CIK={cik}",
         f"{registrant}, SEC EDGAR",

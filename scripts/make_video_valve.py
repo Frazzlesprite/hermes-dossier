@@ -561,7 +561,7 @@ def scene_close(t: float, data: dict) -> Image.Image:
 
     canvas, draw = layer()
     p = appear(t, 3.2, 0.6)
-    text(draw, (92, 528), "github.com/Frazzlesprite/dossier-plugin", path=MONO_B, size=21, fill=ACCENT)
+    text(draw, (92, 528), "github.com/Frazzlesprite/hermes-dossier", path=MONO_B, size=21, fill=ACCENT)
     stamp(image, canvas, p)
 
     canvas, draw = layer()
