@@ -1,4 +1,4 @@
-r"""The submission demo: Valve Corporation, cut with motion and sound.
+r"""The Valve demo: cut with motion and sound.
 
 Every claim, date and quote comes from `demo_valve.main()`, which replays the
 captured pages through the real pipeline. The brief and PDF frames are

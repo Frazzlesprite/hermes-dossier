@@ -1,4 +1,4 @@
-r"""The submission demo: 34 seconds, 1080p, four-stem mix.
+r"""The demo: 34 seconds, 1080p, four-stem mix.
 
 Draws at 2x design units (2560x1440) and downscales to 1080p, so small text
 survives compression. Layout is authored in 1280x720 units throughout.
