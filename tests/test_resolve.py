@@ -33,9 +33,15 @@ def test_two_same_name_people_are_ambiguous():
 
 
 def test_a_disambiguator_resolves_without_guessing():
+    """The name is the person; the employer is why this Sarah Chen is the one.
+
+    The old assertion checked "Acme" against the name, which passed only while
+    the whole page title was being used as the name.
+    """
     result = resolve("Sarah Chen", documents=_sarah(), disambiguator="Acme")
     assert result["status"] == "resolved"
-    assert "Acme" in result["candidate"]["name"]
+    assert result["candidate"]["name"] == "Sarah Chen"
+    assert "Acme" in result["candidate"]["disambiguator"]
 
 
 def test_a_domain_pins_the_entity():
@@ -75,3 +81,51 @@ def test_ambiguous_message_lists_candidates():
     message = ambiguous_message(result)
     assert "Which one?" in message
     assert "Harbour Fund" in message and "Acme Robotics" in message
+
+
+def test_a_page_title_does_not_become_the_entity_name():
+    """The bug the live probe found: "About Us - Palo Alto Networks" as a name."""
+    docs = [
+        _doc(
+            "https://www.paloaltonetworks.com/about-us",
+            "About Us - Palo Alto Networks",
+            "Palo Alto Networks protects the digital way of life.",
+        )
+    ]
+    result = resolve("Palo Alto Networks", documents=docs)
+    assert result["status"] == "resolved"
+    assert result["candidate"]["name"] == "Palo Alto Networks"
+
+
+def test_a_title_with_the_name_repeated_is_cleaned():
+    docs = [
+        _doc(
+            "https://www.rocketlabusa.com/about-us/",
+            "Rocket Lab | About Us | Rocket Lab",
+            "Rocket Lab is an end-to-end space company.",
+        )
+    ]
+    result = resolve("Rocket Lab", documents=docs)
+    assert result["candidate"]["name"] == "Rocket Lab"
+
+
+def test_a_title_with_only_navigation_falls_back_to_the_typed_name():
+    docs = [_doc("https://acme.example/", "Home", "Acme Robotics builds warehouse robots.")]
+    result = resolve("Acme Robotics", documents=docs)
+    assert result["candidate"]["name"] == "Acme Robotics"
+
+
+def test_a_profile_page_title_does_not_become_the_name():
+    """The profile branch must strip the platform, not keep the whole title."""
+    docs = [
+        _doc(
+            "https://www.linkedin.com/in/sarah-chen",
+            "Sarah Chen - Engineer at Acme Robotics | LinkedIn",
+            "Sarah Chen is a hardware engineer at Acme Robotics.",
+        )
+    ]
+    result = resolve("Sarah Chen", documents=docs)
+    assert result["status"] == "resolved"
+    assert result["candidate"]["name"] == "Sarah Chen"
+    assert "Acme Robotics" in result["candidate"]["disambiguator"]
+    assert "LinkedIn" not in result["candidate"]["disambiguator"]

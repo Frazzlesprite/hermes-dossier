@@ -37,9 +37,23 @@ _NOT_OWN_SITE = (
     "medium.com",
     "reddit.com")
 
+# The platform's own name is furniture on a profile title, just like "About Us".
+_PLATFORM_WORDS = {
+    domain.split(".")[0] for domain in _NOT_OWN_SITE if len(domain.split(".")[0]) > 1
+}
+
 _ORG_SUFFIXES = re.compile(
     r"\b(pty\.?\s*ltd|pty|limited|ltd|inc\.?|llc|llp|plc|corp\.?|corporation|company|co\.|gmbh|sa|bv|nv|ag)\b",
     re.IGNORECASE)
+
+# Page titles are full of navigation furniture. A title of "About Us - Acme"
+# must not become the entity's name: it poisons the brief heading, the questions
+# and the name-based registry lookup all at once.
+_NAV_TITLES = {
+    "about", "about us", "about our company", "home", "homepage", "home page",
+    "contact", "contact us", "company", "company overview", "team", "our team",
+    "who we are", "overview", "profile", "welcome", "index", "main",
+}
 
 
 @dataclass
@@ -125,15 +139,20 @@ def candidates_from_documents(name: str, docs: Iterable[Document], kind: str | N
             # A page that never names the entity is evidence about something
             # else; it must not create an identity.
             continue
+        chosen = _name_from_title(title, domain, name) or name
         if any(domain == d or domain.endswith("." + d) for d in _NOT_OWN_SITE):
             # A profile page tells us the entity exists, but it is not its site.
+            # The title still carries the furniture ("... | LinkedIn"), so the
+            # name comes from the title minus the navigation and the platform,
+            # and whatever is left becomes the disambiguator.
             key = f"{domain}:{title.casefold()}"
             found.setdefault(
                 key,
                 Candidate(
-                    name=title or name,
+                    name=chosen,
                     kind=kind or "org",
-                    disambiguator=_profile_disambiguator(doc),
+                    disambiguator=_title_remainder(title, chosen)
+                    or _profile_disambiguator(doc),
                     domain=None,
                     sources=[doc.url],
                     score=0.3))
@@ -144,8 +163,9 @@ def candidates_from_documents(name: str, docs: Iterable[Document], kind: str | N
         cand = found.setdefault(
             key,
             Candidate(
-                name=title or name,
+                name=chosen,
                 kind=kind or "org",
+                disambiguator=_title_remainder(title, chosen),
                 domain=domain,
                 sources=[],
                 score=0.0,
@@ -165,25 +185,65 @@ def _profile_disambiguator(doc: Document) -> str:
     return f"listed on {domain}" if domain else "profile page"
 
 
-def _name_from_title(title: str, domain: str) -> Optional[str]:
+def _title_parts(title: str) -> list[str]:
+    """Split a page title on the separators sites actually use."""
+    parts = [p.strip(" -,·|:") for p in re.split(r"[|·]|\s+[\u2014\u2013-]\s+|:\s+", title or "")]
+    return [p for p in parts if p]
+
+
+def _title_remainder(title: str, chosen: str) -> str:
+    """The useful part of a title that is not the name.
+
+    "Sarah Chen - Partner, Harbour Fund" is a person whose page tells you where
+    she works. Keeping that as a disambiguator is what stops two Sarah Chens
+    merging; navigation fragments are dropped.
+    """
+    leftover = [
+        part for part in _title_parts(title)
+        if part.casefold() != (chosen or "").casefold()
+        and part.casefold().strip() not in _NAV_TITLES
+        and part.casefold().strip() not in _PLATFORM_WORDS
+        and len(part) <= 48
+    ]
+    return ", ".join(dict.fromkeys(leftover))
+
+
+def _name_from_title(title: str, domain: str, hint: str = "") -> Optional[str]:
     """The organisation's own name, dug out of a page title.
 
     A domain tells us *where* the entity is, not *what* it is called, so the
-    title is the better source. Site titles are usually "Name | tagline", so
-    take the first segment that is not the domain and not a long tagline.
+    title is the better source. But a title is a page, not an identity:
+    "About Us - Acme Robotics" is a page about Acme, and taking the whole string
+    as the canonical name broke the brief heading, the questions and the EDGAR
+    lookup. Split the title, drop navigation fragments, and score what is left
+    against the domain and the name the user typed.
     """
     if not title:
         return None
-    parts = [p.strip(" -, ·|:·") for p in re.split(r"[|\u00b7]|\s+[\u2014\u2013-]\s+", title)]
-    parts = [p for p in parts if p and len(p) <= 48 and domain.casefold() not in p.casefold()]
+    parts = [p for p in _title_parts(title) if len(p) <= 48 and domain.casefold() not in p.casefold()]
     if not parts:
         return None
-    root = domain.split(".")[0].replace("-", " ").casefold()
-    if root:
-        for part in parts:
-            if root in part.casefold():
-                return part
-    return parts[0]
+
+    root = domain.split(".")[0].replace("-", " ").replace(" ", "").casefold()
+    hint_words = {w for w in re.findall(r"[a-z0-9]{3,}", (hint or "").casefold())}
+
+    def score(part: str) -> float:
+        low = part.casefold()
+        words = {w for w in re.findall(r"[a-z0-9]{3,}", low)}
+        value = 0.0
+        if low.strip() in _NAV_TITLES:
+            value -= 5.0
+        if root and root in low.replace(" ", "").replace("-", ""):
+            value += 3.0
+        value += 2.0 * len(hint_words & words)
+        if 2 <= len(part.split()) <= 5:
+            value += 1.0
+        return value
+
+    best = max(parts, key=score)
+    if score(best) <= 0 and hint:
+        return hint.strip() or None
+    return best
 
 
 def resolve(
@@ -209,7 +269,7 @@ def resolve(
         clean_domain = registrable_domain(domain)
         docs = list(documents)
         on_domain = [d for d in docs if (d.domain or "") == clean_domain]
-        derived = _name_from_title(on_domain[0].title, clean_domain) if on_domain else None
+        derived = _name_from_title(on_domain[0].title, clean_domain, name) if on_domain else None
         return {
             "status": "resolved",
             "candidate": Candidate(
